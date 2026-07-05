@@ -6,7 +6,8 @@ class Family::Membership < ApplicationRecord
   belongs_to :family
   belongs_to :user
 
-  validates :user_id, presence: true, uniqueness: true
+  validates :user_id, presence: true
+  validates :user_id, uniqueness: { scope: :family_id, message: 'is already a member of this family' }
   validates :role, presence: true
 
   enum :role, { owner: 0, member: 1 }

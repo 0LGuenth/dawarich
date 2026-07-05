@@ -12,7 +12,10 @@ RSpec.describe Family::Membership, type: :model do
     subject { build(:family_membership) }
 
     it { is_expected.to validate_presence_of(:user_id) }
-    it { is_expected.to validate_uniqueness_of(:user_id) }
+    it {
+      is_expected.to validate_uniqueness_of(:user_id).scoped_to(:family_id)
+                                                     .with_message('is already a member of this family')
+    }
     it { is_expected.to validate_presence_of(:role) }
   end
 
@@ -30,12 +33,26 @@ RSpec.describe Family::Membership, type: :model do
       expect(membership1).to be_valid
     end
 
-    it 'prevents a user from being in multiple families' do
+    it 'prevents a user from joining the same family twice' do
       create(:family_membership, family: family1, user: user)
-      membership2 = build(:family_membership, family: family2, user: user)
+      membership2 = build(:family_membership, family: family1, user: user)
 
       expect(membership2).not_to be_valid
-      expect(membership2.errors[:user_id]).to include('has already been taken')
+      expect(membership2.errors[:user_id]).to include('is already a member of this family')
+    end
+  end
+
+  describe 'multiple memberships per user' do
+    it 'allows one user to belong to two families' do
+      user = create(:user)
+      fam_a = create(:family)
+      fam_b = create(:family)
+
+      create(:family_membership, user: user, family: fam_a)
+      second = build(:family_membership, user: user, family: fam_b)
+
+      expect(second).to be_valid
+      expect { second.save! }.not_to raise_error
     end
   end
 
