@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_07_05_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_07_05_120001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "postgis"
@@ -170,6 +170,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_05_120000) do
     t.integer "role", default: 1, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "sharing_enabled", default: false, null: false
+    t.datetime "sharing_expires_at"
+    t.datetime "sharing_started_at"
+    t.boolean "share_history", default: false, null: false
+    t.string "history_window", default: "24h", null: false
+    t.string "sharing_duration"
     t.index ["family_id", "role"], name: "index_family_memberships_on_family_and_role"
     t.index ["user_id", "family_id"], name: "index_family_memberships_on_user_and_family", unique: true
     t.index ["user_id"], name: "index_family_memberships_on_user_id"
