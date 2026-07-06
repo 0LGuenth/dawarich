@@ -4,7 +4,7 @@ class Family::InvitationPolicy < ApplicationPolicy
   def create?
     return false unless user
 
-    user.family == record.family && user.family_owner?
+    user.owner_of?(record.family)
   end
 
   def accept?

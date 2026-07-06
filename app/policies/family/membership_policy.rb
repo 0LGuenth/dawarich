@@ -12,6 +12,6 @@ class Family::MembershipPolicy < ApplicationPolicy
     return false unless user
     return true if user == record.user
 
-    user.family == record.family && user.family_owner?
+    user.owner_of?(record.family)
   end
 end

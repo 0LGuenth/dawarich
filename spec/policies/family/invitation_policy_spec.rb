@@ -16,11 +16,6 @@ RSpec.describe Family::InvitationPolicy, type: :policy do
 
   describe '#create?' do
     context 'when user is family owner' do
-      before do
-        allow(owner).to receive(:family).and_return(family)
-        allow(owner).to receive(:family_owner?).and_return(true)
-      end
-
       it 'allows family owner to create invitations' do
         policy = described_class.new(owner, invitation)
 
@@ -29,11 +24,6 @@ RSpec.describe Family::InvitationPolicy, type: :policy do
     end
 
     context 'when user is regular family member' do
-      before do
-        allow(member).to receive(:family).and_return(family)
-        allow(member).to receive(:family_owner?).and_return(false)
-      end
-
       it 'denies regular family member from creating invitations' do
         policy = described_class.new(member, invitation)
 
@@ -96,11 +86,6 @@ RSpec.describe Family::InvitationPolicy, type: :policy do
 
   describe '#destroy?' do
     context 'when user is family owner' do
-      before do
-        allow(owner).to receive(:family).and_return(family)
-        allow(owner).to receive(:family_owner?).and_return(true)
-      end
-
       it 'allows family owner to cancel invitations' do
         policy = described_class.new(owner, invitation)
 
@@ -109,11 +94,6 @@ RSpec.describe Family::InvitationPolicy, type: :policy do
     end
 
     context 'when user is regular family member' do
-      before do
-        allow(member).to receive(:family).and_return(family)
-        allow(member).to receive(:family_owner?).and_return(false)
-      end
-
       it 'denies regular family member from cancelling invitations' do
         policy = described_class.new(member, invitation)
 
@@ -146,8 +126,6 @@ RSpec.describe Family::InvitationPolicy, type: :policy do
 
       before do
         create(:family_membership, family: other_family, user: other_family_owner, role: :owner)
-        allow(owner).to receive(:family).and_return(family)
-        allow(owner).to receive(:family_owner?).and_return(true)
       end
 
       it 'denies owner from creating invitations for different family' do
@@ -174,8 +152,6 @@ RSpec.describe Family::InvitationPolicy, type: :policy do
       end
 
       it 'allows owner to destroy expired invitation' do
-        allow(owner).to receive(:family).and_return(family)
-        allow(owner).to receive(:family_owner?).and_return(true)
         policy = described_class.new(owner, expired_invitation)
 
         expect(policy).to permit(:destroy)
@@ -186,8 +162,6 @@ RSpec.describe Family::InvitationPolicy, type: :policy do
       let(:accepted_invitation) { create(:family_invitation, :accepted, family: family, invited_by: owner) }
 
       it 'allows owner to destroy accepted invitation' do
-        allow(owner).to receive(:family).and_return(family)
-        allow(owner).to receive(:family_owner?).and_return(true)
         policy = described_class.new(owner, accepted_invitation)
 
         expect(policy).to permit(:destroy)
@@ -198,8 +172,6 @@ RSpec.describe Family::InvitationPolicy, type: :policy do
       let(:cancelled_invitation) { create(:family_invitation, :cancelled, family: family, invited_by: owner) }
 
       it 'allows owner to destroy cancelled invitation' do
-        allow(owner).to receive(:family).and_return(family)
-        allow(owner).to receive(:family_owner?).and_return(true)
         policy = described_class.new(owner, cancelled_invitation)
 
         expect(policy).to permit(:destroy)
@@ -209,8 +181,6 @@ RSpec.describe Family::InvitationPolicy, type: :policy do
 
   describe 'authorization consistency' do
     it 'ensures owner can both create and destroy invitations' do
-      allow(owner).to receive(:family).and_return(family)
-      allow(owner).to receive(:family_owner?).and_return(true)
       policy = described_class.new(owner, invitation)
 
       expect(policy).to permit(:create)
@@ -218,8 +188,6 @@ RSpec.describe Family::InvitationPolicy, type: :policy do
     end
 
     it 'ensures regular members cannot create or destroy invitations' do
-      allow(member).to receive(:family).and_return(family)
-      allow(member).to receive(:family_owner?).and_return(false)
       policy = described_class.new(member, invitation)
 
       expect(policy).not_to permit(:create)

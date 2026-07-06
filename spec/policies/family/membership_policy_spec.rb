@@ -63,14 +63,12 @@ RSpec.describe Family::MembershipPolicy, type: :policy do
   describe '#destroy?' do
     context 'when user is removing themselves' do
       it 'allows user to remove their own membership (leave family)' do
-        allow(member).to receive(:family).and_return(family)
         policy = described_class.new(member, member_membership)
 
         expect(policy).to permit(:destroy)
       end
 
       it 'allows owner to remove their own membership' do
-        allow(owner).to receive(:family).and_return(family)
         policy = described_class.new(owner, owner_membership)
 
         expect(policy).to permit(:destroy)
@@ -79,8 +77,7 @@ RSpec.describe Family::MembershipPolicy, type: :policy do
 
     context 'when user is family owner' do
       before do
-        allow(owner).to receive(:family).and_return(family)
-        allow(owner).to receive(:family_owner?).and_return(true)
+        owner_membership
       end
 
       it 'allows family owner to remove other members' do
@@ -100,8 +97,7 @@ RSpec.describe Family::MembershipPolicy, type: :policy do
 
     context 'when user is regular family member' do
       before do
-        allow(member).to receive(:family).and_return(family)
-        allow(member).to receive(:family_owner?).and_return(false)
+        member_membership
       end
 
       it 'denies regular member from removing other members' do
@@ -143,8 +139,7 @@ RSpec.describe Family::MembershipPolicy, type: :policy do
       end
 
       before do
-        allow(owner).to receive(:family).and_return(family)
-        allow(owner).to receive(:family_owner?).and_return(true)
+        owner_membership
       end
 
       it 'denies owner from destroying membership of different family' do
@@ -159,8 +154,7 @@ RSpec.describe Family::MembershipPolicy, type: :policy do
       let(:co_owner_membership) { create(:family_membership, :owner, family: family, user: co_owner) }
 
       before do
-        allow(owner).to receive(:family).and_return(family)
-        allow(owner).to receive(:family_owner?).and_return(true)
+        owner_membership
       end
 
       it 'allows owner to remove another owner (family owner has full control)' do
@@ -173,8 +167,7 @@ RSpec.describe Family::MembershipPolicy, type: :policy do
 
   describe 'authorization consistency' do
     it 'ensures owner can destroy all memberships in their family' do
-      allow(owner).to receive(:family).and_return(family)
-      allow(owner).to receive(:family_owner?).and_return(true)
+      owner_membership
 
       policy = described_class.new(owner, member_membership)
 
@@ -182,8 +175,7 @@ RSpec.describe Family::MembershipPolicy, type: :policy do
     end
 
     it 'ensures regular members can only remove their own membership' do
-      allow(member).to receive(:family).and_return(family)
-      allow(member).to receive(:family_owner?).and_return(false)
+      member_membership
 
       own_policy = described_class.new(member, member_membership)
       other_policy = described_class.new(member, another_member_membership)
@@ -196,10 +188,31 @@ RSpec.describe Family::MembershipPolicy, type: :policy do
     end
 
     it 'ensures users can always leave the family (remove own membership)' do
-      allow(member).to receive(:family).and_return(family)
       policy = described_class.new(member, member_membership)
 
       expect(policy).to permit(:destroy)
+    end
+  end
+
+  describe '#destroy? multi-family' do
+    it 'allows the owner of the record\'s family to remove a member' do
+      family = create(:family)
+      owner = create(:user)
+      member = create(:user)
+      create(:family_membership, :owner, user: owner, family: family)
+      membership = create(:family_membership, user: member, family: family)
+
+      expect(described_class.new(owner, membership).destroy?).to be(true)
+    end
+
+    it 'denies an owner of a DIFFERENT family' do
+      family = create(:family)
+      other_family = create(:family)
+      outsider = create(:user)
+      create(:family_membership, :owner, user: outsider, family: other_family)
+      membership = create(:family_membership, user: create(:user), family: family)
+
+      expect(described_class.new(outsider, membership).destroy?).to be(false)
     end
   end
 end
