@@ -73,12 +73,11 @@ RSpec.describe Families::Invite do
       end
     end
 
-    context 'when user is already in a family' do
+    context 'when user is already in this family' do
       let(:existing_user) { create(:user, email: email) }
-      let(:other_family) { create(:family) }
 
       before do
-        create(:family_membership, user: existing_user, family: other_family)
+        create(:family_membership, user: existing_user, family: family)
       end
 
       it 'returns false' do
@@ -115,6 +114,25 @@ RSpec.describe Families::Invite do
         service.call
         expect(service.errors[:email]).to be_present
       end
+    end
+  end
+
+  describe 'multi-family invites' do
+    it 'invites a user who already belongs to a different family' do
+      invitee = create(:user)
+      create(:family_membership, user: invitee, family: create(:family))
+
+      service = described_class.new(family: family, email: invitee.email, invited_by: owner)
+      expect(service.call).to be(true)
+    end
+
+    it 'rejects inviting a user already in THIS family' do
+      invitee = create(:user)
+      create(:family_membership, user: invitee, family: family)
+
+      service = described_class.new(family: family, email: invitee.email, invited_by: owner)
+      expect(service.call).to be(false)
+      expect(service.error_message).to match(/already in this family/i)
     end
   end
 

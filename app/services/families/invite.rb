@@ -46,12 +46,12 @@ module Families
     private
 
     def invite_sendable?
-      unless invited_by.family_owner?
+      unless invited_by.owner_of?(family)
         return add_error_and_false(:invited_by,
                                    'You must be a family owner to send invitations')
       end
       return add_error_and_false(:family, 'Family is full') if family.full?
-      return add_error_and_false(:email, 'User is already in a family') if user_already_in_family?
+      return add_error_and_false(:email, 'User is already in this family') if already_in_this_family?
       return add_error_and_false(:email, 'Invitation already sent to this email') if pending_invitation_exists?
 
       true
@@ -62,10 +62,8 @@ module Families
       false
     end
 
-    def user_already_in_family?
-      User.joins(:family_membership)
-          .where(email: email)
-          .exists?
+    def already_in_this_family?
+      family.members.exists?(email: email)
     end
 
     def pending_invitation_exists?
