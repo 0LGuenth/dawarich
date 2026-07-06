@@ -165,7 +165,7 @@ Rails.application.routes.draw do
 
   # Family management routes (only if feature is enabled)
   if DawarichSettings.family_feature_enabled?
-    resource :family, only: %i[show new create edit update destroy] do
+    resources :families, only: %i[index show new create edit update destroy] do
       resources :invitations, except: %i[edit update], controller: 'family/invitations'
       resources :members, only: %i[destroy], controller: 'family/memberships'
       resources :location_requests, only: %i[show create], controller: 'family/location_requests' do
