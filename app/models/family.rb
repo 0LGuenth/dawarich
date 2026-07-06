@@ -26,8 +26,7 @@ class Family < ApplicationRecord
   end
 
   def owners
-    members.joins(:family_membership)
-           .where(family_memberships: { role: :owner })
+    User.where(id: family_memberships.where(role: :owner).select(:user_id))
   end
 
   def owner

@@ -192,6 +192,18 @@ RSpec.describe Family, type: :model do
     end
   end
 
+  describe '#owners' do
+    it 'returns only members whose membership role is owner' do
+      family = create(:family)
+      owner = create(:user)
+      member = create(:user)
+      create(:family_membership, :owner, user: owner, family: family)
+      create(:family_membership, user: member, family: family)
+
+      expect(family.owners).to contain_exactly(owner)
+    end
+  end
+
   describe '#full?' do
     let(:family) { create(:family, creator: user) }
 
