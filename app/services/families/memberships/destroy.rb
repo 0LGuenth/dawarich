@@ -3,10 +3,11 @@
 module Families
   module Memberships
     class Destroy
-      attr_reader :user, :member_to_remove, :error_message
+      attr_reader :user, :family, :member_to_remove, :error_message
 
-      def initialize(user:, member_to_remove: nil)
+      def initialize(user:, family:, member_to_remove: nil)
         @user = user
+        @family = family
         @member_to_remove = member_to_remove || user
         @error_message = nil
       end
@@ -14,8 +15,8 @@ module Families
       def call
         return false unless validate_can_leave
 
-        @family_name = member_to_remove.family.name
-        @family_owner = member_to_remove.family.owner
+        @family_name = family.name
+        @family_owner = family.owner
 
         ActiveRecord::Base.transaction do
           remove_membership
@@ -43,9 +44,9 @@ module Families
       end
 
       def validate_in_family
-        return true if member_to_remove.in_family?
+        return true if member_to_remove.member_of?(family)
 
-        @error_message = 'User is not currently in a family.'
+        @error_message = 'User is not a member of this family.'
         false
       end
 
@@ -64,35 +65,35 @@ module Families
       end
 
       def validate_owner_can_leave
-        return true unless member_to_remove.family_owner?
+        return true unless member_to_remove.owner_of?(family)
 
         @error_message = 'Family owners cannot remove their own membership. To leave the family, delete it instead.'
         false
       end
 
       def validate_remover_is_owner
-        return true if user.family_owner?
+        return true if user.owner_of?(family)
 
         @error_message = 'Only family owners can remove other members.'
         false
       end
 
       def validate_same_family
-        return true if user.family == member_to_remove.family
+        return true if user.member_of?(family)
 
         @error_message = 'Cannot remove members from a different family.'
         false
       end
 
       def validate_not_removing_owner
-        return true unless member_to_remove.family_owner?
+        return true unless member_to_remove.owner_of?(family)
 
         @error_message = 'Cannot remove the family owner. The owner must delete the family or leave on their own.'
         false
       end
 
       def remove_membership
-        member_to_remove.family_membership.destroy!
+        member_to_remove.membership_for(family).destroy!
       end
 
       def send_notifications

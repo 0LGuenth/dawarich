@@ -42,7 +42,9 @@ class Family::MembershipsController < ApplicationController
     authorize @membership
 
     member_user = @membership.user
-    service = Families::Memberships::Destroy.new(user: current_user, member_to_remove: member_user)
+    service = Families::Memberships::Destroy.new(
+      user: current_user, family: @membership.family, member_to_remove: member_user
+    )
 
     if service.call
       if member_user == current_user

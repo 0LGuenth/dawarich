@@ -5,20 +5,20 @@ require 'rails_helper'
 RSpec.describe Families::Memberships::Destroy do
   let(:user) { create(:user) }
   let(:family) { create(:family, creator: user) }
-  let(:service) { described_class.new(user: user) }
+  let(:service) { described_class.new(user: user, family: family) }
 
   describe '#call' do
     context 'when user is a member (not owner)' do
       let(:member) { create(:user) }
       let!(:owner_membership) { create(:family_membership, user: user, family: family, role: :owner) }
       let!(:member_membership) { create(:family_membership, user: member, family: family, role: :member) }
-      let(:service) { described_class.new(user: member) }
+      let(:service) { described_class.new(user: member, family: family) }
 
       it 'removes the membership' do
         result = service.call
         expect(result).to be_truthy, "Expected service to succeed but got error: #{service.error_message}"
         expect(Family::Membership.count).to eq(1) # Only owner should remain
-        expect(member.reload.family_membership).to be_nil
+        expect(member.reload.member_of?(family)).to be(false)
       end
 
       it 'sends notification to member who left' do
@@ -48,7 +48,7 @@ RSpec.describe Families::Memberships::Destroy do
 
       it 'prevents owner from leaving' do
         expect { service.call }.not_to change(Family::Membership, :count)
-        expect(user.reload.family_membership).to be_present
+        expect(user.reload.member_of?(family)).to be(true)
       end
 
       it 'does not delete the family' do
@@ -76,7 +76,7 @@ RSpec.describe Families::Memberships::Destroy do
 
       it 'does not remove membership' do
         expect { service.call }.not_to change(Family::Membership, :count)
-        expect(user.reload.family_membership).to be_present
+        expect(user.reload.member_of?(family)).to be(true)
       end
     end
 
@@ -88,6 +88,26 @@ RSpec.describe Families::Memberships::Destroy do
       it 'does not create any notifications' do
         expect { service.call }.not_to change(Notification, :count)
       end
+    end
+  end
+
+  describe 'multi-family removal' do
+    let(:family) { create(:family) }
+    let(:owner) { create(:user) }
+    let(:member) { create(:user) }
+
+    before do
+      create(:family_membership, :owner, user: owner, family: family)
+      create(:family_membership, user: member, family: family)
+      # member also belongs to an unrelated family
+      create(:family_membership, user: member, family: create(:family))
+    end
+
+    it 'removes only the membership in the target family' do
+      service = described_class.new(user: owner, family: family, member_to_remove: member)
+      expect(service.call).to be(true)
+      expect(member.reload.families).not_to include(family)
+      expect(member.families.count).to eq(1)
     end
   end
 end
