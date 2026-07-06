@@ -5,14 +5,15 @@ class Families::CreateLocationRequest
 
   COOLDOWN_PERIOD = 1.hour
 
-  def initialize(requester:, target_user:)
+  def initialize(requester:, target_user:, family:)
     @requester = requester
     @target_user = target_user
+    @family = family
   end
 
   def call
     return not_in_same_family_error unless in_same_family?
-    return already_sharing_error if target_user.family_sharing_enabled?
+    return already_sharing_error if target_membership&.sharing_active?
     return cooldown_error if cooldown_active?
 
     request = create_request!
@@ -29,10 +30,14 @@ class Families::CreateLocationRequest
 
   private
 
-  attr_reader :requester, :target_user
+  attr_reader :requester, :target_user, :family
 
   def in_same_family?
-    requester.in_family? && target_user.in_family? && requester.family == target_user.family
+    requester.member_of?(family) && target_user.member_of?(family)
+  end
+
+  def target_membership
+    @target_membership ||= target_user.membership_for(family)
   end
 
   def cooldown_active?
@@ -47,7 +52,7 @@ class Families::CreateLocationRequest
     Family::LocationRequest.create!(
       requester: requester,
       target_user: target_user,
-      family: requester.family
+      family: family
     )
   end
 

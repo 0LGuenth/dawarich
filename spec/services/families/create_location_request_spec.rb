@@ -5,17 +5,17 @@ require 'rails_helper'
 RSpec.describe Families::CreateLocationRequest do
   include ActiveSupport::Testing::TimeHelpers
 
-  let(:family) { create(:family) }
-  let(:requester) { family.creator }
-  let(:target_user) { create(:user) }
-
-  before do
-    create(:family_membership, family: family, user: requester, role: :owner)
-    create(:family_membership, family: family, user: target_user)
-  end
-
   describe '#call' do
-    subject(:result) { described_class.new(requester: requester, target_user: target_user).call }
+    let(:family) { create(:family) }
+    let(:requester) { family.creator }
+    let(:target_user) { create(:user) }
+
+    before do
+      create(:family_membership, family: family, user: requester, role: :owner)
+      create(:family_membership, family: family, user: target_user)
+    end
+
+    subject(:result) { described_class.new(requester: requester, target_user: target_user, family: family).call }
 
     context 'when valid' do
       it 'creates a location request' do
@@ -49,7 +49,7 @@ RSpec.describe Families::CreateLocationRequest do
     end
 
     context 'when requester and target are the same user' do
-      subject(:result) { described_class.new(requester: requester, target_user: requester).call }
+      subject(:result) { described_class.new(requester: requester, target_user: requester, family: family).call }
 
       it 'returns failure' do
         expect(result.success?).to be false
@@ -60,7 +60,7 @@ RSpec.describe Families::CreateLocationRequest do
     context 'when users are not in the same family' do
       let(:outsider) { create(:user) }
 
-      subject(:result) { described_class.new(requester: requester, target_user: outsider).call }
+      subject(:result) { described_class.new(requester: requester, target_user: outsider, family: family).call }
 
       it 'returns failure' do
         expect(result.success?).to be false
@@ -69,7 +69,7 @@ RSpec.describe Families::CreateLocationRequest do
     end
 
     context 'when target user is already sharing location' do
-      before { target_user.update_family_location_sharing!(true, duration: 'permanent') }
+      before { target_user.membership_for(family).update_sharing!(true, duration: 'permanent') }
 
       it 'returns failure' do
         expect(result.success?).to be false
@@ -112,6 +112,32 @@ RSpec.describe Families::CreateLocationRequest do
       it 'succeeds (expired requests do not count toward cooldown)' do
         expect(result.success?).to be true
       end
+    end
+  end
+
+  describe 'multi-family scoping' do
+    let(:family) { create(:family) }
+    let(:requester) { create(:user) }
+    let(:target) { create(:user) }
+
+    before do
+      create(:family_membership, user: requester, family: family)
+      create(:family_membership, user: target, family: family)
+    end
+
+    it 'creates a request when both share the given family' do
+      result = described_class.new(requester: requester, target_user: target, family: family).call
+      expect(result.success?).to be(true)
+      expect(Family::LocationRequest.last.family).to eq(family)
+    end
+
+    it 'fails when the two are not in the given family together' do
+      other_family = create(:family)
+      create(:family_membership, user: requester, family: other_family)
+
+      result = described_class.new(requester: requester, target_user: target, family: other_family).call
+      expect(result.success?).to be(false)
+      expect(result.status).to eq(:forbidden)
     end
   end
 end
