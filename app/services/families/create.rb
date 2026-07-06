@@ -34,10 +34,6 @@ module Families
       handle_record_invalid_error(e)
 
       false
-    rescue ActiveRecord::RecordNotUnique => e
-      handle_uniqueness_error(e)
-
-      false
     rescue StandardError => e
       handle_generic_error(e)
 
@@ -47,17 +43,10 @@ module Families
     private
 
     def validate_user_eligibility
-      if user.in_family?
-        @error_message = 'You must leave your current family before creating a new one'
-        return false
-      end
+      return true if user.can_create_more_families?
 
-      if user.created_family.present?
-        @error_message = 'You have already created a family. Each user can only create one family'
-        return false
-      end
-
-      true
+      @error_message = "You have reached the maximum number of families (#{UserFamily::MAX_FAMILIES})"
+      false
     end
 
     def validate_feature_access
@@ -112,10 +101,6 @@ module Families
         else
           "Failed to create family: #{error.message}"
         end
-    end
-
-    def handle_uniqueness_error(_error)
-      @error_message = 'A family with this name already exists for your account'
     end
 
     def handle_generic_error(error)

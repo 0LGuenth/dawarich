@@ -16,7 +16,7 @@ RSpec.describe Families::Create do
 
       it 'creates owner membership' do
         service.call
-        membership = user.reload.family_membership
+        membership = user.reload.family_memberships.first
         expect(membership.role).to eq('owner')
         expect(membership.family).to eq(service.family)
       end
@@ -25,53 +25,26 @@ RSpec.describe Families::Create do
         expect(service.call).to be true
       end
     end
+  end
 
-    context 'when user is already in a family' do
-      before { create(:family_membership, user: user) }
+  describe 'multi-family' do
+    let(:user) { create(:user) }
 
-      it 'returns false' do
-        expect(service.call).to be false
-      end
+    it 'creates a second family when the user already belongs to one' do
+      create(:family_membership, :owner, user: user, family: create(:family))
 
-      it 'does not create a family' do
-        expect { service.call }.not_to change(Family, :count)
-      end
-
-      it 'does not create a membership' do
-        expect { service.call }.not_to change(Family::Membership, :count)
-      end
-
-      it 'sets appropriate error message' do
-        service.call
-        expect(service.error_message).to eq('You must leave your current family before creating a new one')
-      end
+      service = described_class.new(user: user, name: 'Second Family')
+      expect(service.call).to be(true)
+      expect(user.reload.families.count).to eq(2)
     end
 
-    context 'when user has already created a family before' do
-      before do
-        # User creates and then deletes their family membership, but family still exists
-        old_family = create(:family, creator: user)
-        membership = create(:family_membership, user: user, family: old_family, role: :owner)
-        membership.destroy! # User leaves the family but family still exists
-        user.reload # Ensure user association is refreshed
-      end
+    it 'rejects creation at the MAX_FAMILIES cap' do
+      stub_const('UserFamily::MAX_FAMILIES', 1)
+      create(:family_membership, :owner, user: user, family: create(:family))
 
-      it 'returns false' do
-        expect(service.call).to be false
-      end
-
-      it 'does not create a family' do
-        expect { service.call }.not_to change(Family, :count)
-      end
-
-      it 'does not create a membership' do
-        expect { service.call }.not_to change(Family::Membership, :count)
-      end
-
-      it 'sets appropriate error message' do
-        service.call
-        expect(service.error_message).to eq('You have already created a family. Each user can only create one family')
-      end
+      service = described_class.new(user: user, name: 'Over Limit')
+      expect(service.call).to be(false)
+      expect(service.error_message).to match(/maximum number of families/i)
     end
   end
 end
