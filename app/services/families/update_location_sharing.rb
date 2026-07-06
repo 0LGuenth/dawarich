@@ -3,8 +3,8 @@
 class Families::UpdateLocationSharing
   Result = Struct.new(:success?, :payload, :status, keyword_init: true)
 
-  def initialize(user:, enabled:, duration:, share_history: nil, history_window: nil)
-    @user = user
+  def initialize(membership:, enabled:, duration:, share_history: nil, history_window: nil)
+    @membership = membership
     @enabled_param = enabled
     @duration_param = duration
     @share_history_param = share_history
@@ -13,9 +13,13 @@ class Families::UpdateLocationSharing
   end
 
   def call
-    return success_result if update_location_sharing
-
-    failure_result('Failed to update location sharing setting', :unprocessable_content)
+    membership.update_sharing!(
+      enabled?,
+      duration: duration_param,
+      share_history: share_history_param.nil? ? nil : boolean_caster.cast(share_history_param),
+      history_window: history_window_param
+    )
+    success_result
   rescue StandardError => e
     ExceptionReporter.call(e, "Error in Families::UpdateLocationSharing: #{e.message}")
 
@@ -24,16 +28,7 @@ class Families::UpdateLocationSharing
 
   private
 
-  attr_reader :user, :enabled_param, :duration_param, :share_history_param, :history_window_param, :boolean_caster
-
-  def update_location_sharing
-    user.update_family_location_sharing!(
-      enabled?,
-      duration: duration_param,
-      share_history: share_history_param.nil? ? nil : boolean_caster.cast(share_history_param),
-      history_window: history_window_param
-    )
-  end
+  attr_reader :membership, :enabled_param, :duration_param, :share_history_param, :history_window_param, :boolean_caster
 
   def enabled?
     @enabled ||= boolean_caster.cast(enabled_param)
@@ -43,13 +38,13 @@ class Families::UpdateLocationSharing
     payload = {
       success: true,
       enabled: enabled?,
-      duration: user.family_sharing_duration,
+      duration: membership.sharing_duration_label,
       message: build_sharing_message
     }
 
-    if enabled? && user.family_sharing_expires_at.present?
-      payload[:expires_at] = user.family_sharing_expires_at.iso8601
-      payload[:expires_at_formatted] = user.family_sharing_expires_at.strftime('%b %d at %I:%M %p')
+    if enabled? && membership.sharing_expires_at.present?
+      payload[:expires_at] = membership.sharing_expires_at.iso8601
+      payload[:expires_at_formatted] = membership.sharing_expires_at.strftime('%b %d at %I:%M %p')
     end
 
     Result.new(success?: true, payload: payload, status: :ok)
