@@ -6,7 +6,7 @@ class FamilyLocationsChannel < ApplicationCable::Channel
     return reject unless DawarichSettings.family_feature_enabled?
     return reject unless current_user.in_family?
 
-    stream_for current_user.family
+    current_user.families.each { |family| stream_for family }
   end
 
   def unsubscribed
