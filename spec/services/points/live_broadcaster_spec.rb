@@ -114,10 +114,11 @@ RSpec.describe Points::LiveBroadcaster do
       let(:family) { create(:family) }
       let(:user) { family.creator }
 
+      let(:membership) { create(:family_membership, family: family, user: user, role: :owner) }
+
       before do
         allow(DawarichSettings).to receive(:family_feature_enabled?).and_return(true)
-        create(:family_membership, family: family, user: user, role: :owner)
-        user.update_family_location_sharing!(true, duration: 'permanent')
+        membership.update_sharing!(true, duration: 'permanent')
       end
 
       context 'when family sharing is enabled' do
@@ -174,7 +175,7 @@ RSpec.describe Points::LiveBroadcaster do
       end
 
       context 'when family sharing is disabled' do
-        before { user.update_family_location_sharing!(false) }
+        before { membership.update_sharing!(false) }
 
         it 'does not broadcast to FamilyLocationsChannel' do
           expect(FamilyLocationsChannel).not_to receive(:broadcast_to)
@@ -261,6 +262,29 @@ RSpec.describe Points::LiveBroadcaster do
 
         described_class.new(user.id, upserted_results, payloads).call
       end
+    end
+  end
+
+  describe 'multi-family broadcast fan-out' do
+    before { allow(DawarichSettings).to receive(:family_feature_enabled?).and_return(true) }
+
+    it 'broadcasts to each family where the user shares' do
+      user = create(:user)
+      fam_a = create(:family)
+      fam_b = create(:family)
+      fam_c = create(:family)
+      m_a = create(:family_membership, user: user, family: fam_a)
+      m_b = create(:family_membership, user: user, family: fam_b)
+      create(:family_membership, user: user, family: fam_c) # sharing OFF
+      m_a.update_sharing!(true, duration: 'permanent')
+      m_b.update_sharing!(true, duration: 'permanent')
+
+      result = { 'latitude' => '1.0', 'longitude' => '2.0', 'timestamp' => Time.current.to_i.to_s, 'id' => '1' }
+
+      expect do
+        described_class.new(user.id, [result], []).call
+      end.to have_broadcasted_to(fam_a).from_channel(FamilyLocationsChannel)
+                                       .and have_broadcasted_to(fam_b).from_channel(FamilyLocationsChannel)
     end
   end
 end

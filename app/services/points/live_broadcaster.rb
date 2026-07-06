@@ -48,9 +48,9 @@ class Points::LiveBroadcaster
   end
 
   def family_sharing?(user)
-    DawarichSettings.family_feature_enabled? &&
-      user.in_family? &&
-      user.family_sharing_enabled?
+    return false unless DawarichSettings.family_feature_enabled?
+
+    user.family_memberships.any?(&:sharing_active?)
   end
 
   def broadcast_points(user, result, payload)
@@ -71,18 +71,18 @@ class Points::LiveBroadcaster
 
   def broadcast_family(user, result)
     timestamp = result['timestamp'].to_i
+    payload = {
+      user_id: user.id,
+      email: user.email,
+      email_initial: user.email.first.upcase,
+      latitude: result['latitude'].to_f,
+      longitude: result['longitude'].to_f,
+      timestamp: timestamp,
+      updated_at: Time.zone.at(timestamp).iso8601
+    }
 
-    FamilyLocationsChannel.broadcast_to(
-      user.family,
-      {
-        user_id: user.id,
-        email: user.email,
-        email_initial: user.email.first.upcase,
-        latitude: result['latitude'].to_f,
-        longitude: result['longitude'].to_f,
-        timestamp: timestamp,
-        updated_at: Time.zone.at(timestamp).iso8601
-      }
-    )
+    user.family_memberships.select(&:sharing_active?).each do |membership|
+      FamilyLocationsChannel.broadcast_to(membership.family, payload)
+    end
   end
 end
