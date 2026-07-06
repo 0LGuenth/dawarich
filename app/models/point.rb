@@ -147,45 +147,20 @@ class Point < ApplicationRecord
 
   # Metrics/AbcSize
   def broadcast_coordinates
-    if user.safe_settings.live_map_enabled
-      PointsChannel.broadcast_to(
-        user,
-        [
-          lat,
-          lon,
-          battery.to_s,
-          altitude.to_s,
-          timestamp.to_s,
-          velocity.to_s,
-          id.to_s,
-          country_name.to_s
-        ]
-      )
-    end
+    return unless user.safe_settings.live_map_enabled
 
-    broadcast_to_family if should_broadcast_to_family?
-  end
-
-  def should_broadcast_to_family?
-    return false unless DawarichSettings.family_feature_enabled?
-    return false unless user.in_family?
-    return false unless user.family_sharing_enabled?
-
-    true
-  end
-
-  def broadcast_to_family
-    FamilyLocationsChannel.broadcast_to(
-      user.family,
-      {
-        user_id: user.id,
-        email: user.email,
-        email_initial: user.email.first.upcase,
-        latitude: lat,
-        longitude: lon,
-        timestamp: timestamp.to_i,
-        updated_at: Time.zone.at(timestamp.to_i).iso8601
-      }
+    PointsChannel.broadcast_to(
+      user,
+      [
+        lat,
+        lon,
+        battery.to_s,
+        altitude.to_s,
+        timestamp.to_s,
+        velocity.to_s,
+        id.to_s,
+        country_name.to_s
+      ]
     )
   end
 

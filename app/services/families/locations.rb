@@ -3,89 +3,95 @@
 class Families::Locations
   attr_reader :user
 
+  MAX_POINTS_PER_MEMBER = 5000
+
   def initialize(user)
     @user = user
   end
 
-  MAX_POINTS_PER_MEMBER = 5000
-
   def call
-    return [] unless family_feature_enabled?
-    return [] unless user.in_family?
+    return [] unless available?
 
-    sharing_members = family_members_with_sharing_enabled
-    return [] unless sharing_members.any?
+    sharing_groups do |family, memberships|
+      members = memberships.filter_map { |m| latest_location(m) }
+      next if members.empty?
 
-    build_family_locations(sharing_members)
+      { family_id: family.id, family_name: family.name, members: members }
+    end
   end
 
   def history(start_at:, end_at:)
-    return [] unless family_feature_enabled?
-    return [] unless user.in_family?
+    return [] unless available?
 
-    sharing_members = family_members_with_sharing_enabled
-    return [] unless sharing_members.any?
+    sharing_groups do |family, memberships|
+      members = memberships.filter_map { |m| history_for(m, start_at: start_at, end_at: end_at) }
+      next if members.empty?
 
-    build_family_history(sharing_members, start_at: start_at, end_at: end_at)
+      { family_id: family.id, family_name: family.name, members: members }
+    end
   end
 
   private
 
-  def family_feature_enabled?
-    DawarichSettings.family_feature_enabled?
+  def available?
+    DawarichSettings.family_feature_enabled? && user.in_family?
   end
 
-  def family_members_with_sharing_enabled
-    user.family.members
-        .select(&:family_sharing_enabled?)
-  end
+  # Yields [family, sharing_memberships] for each of the user's families that
+  # has at least one actively-sharing member. Compacts nil block results.
+  def sharing_groups
+    user.families.includes(family_memberships: :user).filter_map do |family|
+      memberships = family.family_memberships.select(&:sharing_active?)
+      next if memberships.empty?
 
-  def build_family_locations(sharing_members)
-    latest_points =
-      sharing_members.map { _1.points.order(timestamp: :desc).first }.compact
-
-    latest_points.map do |point|
-      {
-        user_id: point.user_id,
-        email: point.user.email,
-        email_initial: point.user.email.first.upcase,
-        latitude: point.lat,
-        longitude: point.lon,
-        timestamp: point.timestamp.to_i,
-        updated_at: Time.zone.at(point.timestamp.to_i),
-        battery: point.battery,
-        battery_status: point.battery_status
-      }
+      yield(family, memberships)
     end
   end
 
-  def build_family_history(sharing_members, start_at:, end_at:)
-    sharing_members.filter_map do |member|
-      points = member.family_history_points(start_at: start_at, end_at: end_at)
-      total = points.count
-      next if total.zero?
+  def latest_location(membership)
+    point = membership.user.points.order(timestamp: :desc).first
+    return nil unless point
 
-      sampled = if total > MAX_POINTS_PER_MEMBER
-                  nth = (total.to_f / MAX_POINTS_PER_MEMBER).ceil
-                  numbered = numbered_rows_sql(points)
-                  points.where(
-                    "id IN (SELECT id FROM (#{numbered}) numbered WHERE mod(row_num, ?) = 0)", nth
-                  )
-                else
-                  points
-                end
-
-      {
-        user_id: member.id,
-        email: member.email,
-        email_initial: member.email.first.upcase,
-        sharing_since: member.family_sharing_started_at&.iso8601,
-        points: sampled.pluck(:latitude, :longitude, :timestamp)
-      }
-    end
+    {
+      user_id: membership.user_id,
+      email: membership.user.email,
+      email_initial: membership.user.email.first.upcase,
+      latitude: point.lat,
+      longitude: point.lon,
+      timestamp: point.timestamp.to_i,
+      updated_at: Time.zone.at(point.timestamp.to_i),
+      battery: point.battery,
+      battery_status: point.battery_status
+    }
   end
 
-  def numbered_rows_sql(scope)
-    scope.select('id, ROW_NUMBER() OVER (ORDER BY timestamp ASC) - 1 AS row_num').to_sql
+  def history_for(membership, start_at:, end_at:)
+    points = membership.history_points(start_at: start_at, end_at: end_at)
+    total = points.count
+    return nil if total.zero?
+
+    sampled = sample(points, total)
+
+    {
+      user_id: membership.user_id,
+      email: membership.user.email,
+      email_initial: membership.user.email.first.upcase,
+      sharing_since: membership.sharing_started_at&.iso8601,
+      # Read coordinates from the PostGIS lonlat geometry.
+      # Order stays [lat, lon, ts] for the frontend.
+      points: sampled.pluck(
+        Arel.sql('ST_Y(lonlat::geometry)'),
+        Arel.sql('ST_X(lonlat::geometry)'),
+        :timestamp
+      )
+    }
+  end
+
+  def sample(points, total)
+    return points unless total > MAX_POINTS_PER_MEMBER
+
+    nth = (total.to_f / MAX_POINTS_PER_MEMBER).ceil
+    numbered = points.select('id, ROW_NUMBER() OVER (ORDER BY timestamp ASC) - 1 AS row_num').to_sql
+    points.where("id IN (SELECT id FROM (#{numbered}) numbered WHERE mod(row_num, ?) = 0)", nth)
   end
 end

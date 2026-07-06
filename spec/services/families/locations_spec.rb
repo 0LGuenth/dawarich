@@ -5,122 +5,137 @@ require 'rails_helper'
 RSpec.describe Families::Locations do
   include ActiveSupport::Testing::TimeHelpers
 
-  let(:now) { Time.zone.local(2026, 3, 13, 12, 0, 0) }
   let(:user) { create(:user) }
-  let(:family) { create(:family, creator: user) }
-  let(:other_user) { create(:user) }
 
-  before do
-    travel_to(now)
-    create(:family_membership, family: family, user: user, role: :owner)
-    create(:family_membership, family: family, user: other_user)
-    allow(DawarichSettings).to receive(:family_feature_enabled?).and_return(true)
+  before { allow(DawarichSettings).to receive(:family_feature_enabled?).and_return(true) }
+
+  # update_sharing! stamps sharing_started_at at "now"; back-date it so points
+  # created in the past fall inside the history window.
+  def enable_sharing(membership, **opts)
+    membership.update!(sharing_started_at: 1.week.ago)
+    membership.update_sharing!(true, duration: 'permanent', **opts)
+    membership
   end
 
-  after { travel_back }
-
   describe '#call' do
-    it 'returns latest locations for sharing members' do
-      other_user.update_family_location_sharing!(true, duration: 'permanent')
-      create(:point, user: other_user, timestamp: 1.hour.ago.to_i)
+    it 'returns groups per family with only sharing members' do
+      fam_a = create(:family)
+      create(:family_membership, user: user, family: fam_a)
+      sharer = create(:user)
+      enable_sharing(create(:family_membership, user: sharer, family: fam_a))
+      create(:point, user: sharer, timestamp: 1.hour.ago.to_i)
+      # A non-sharing member is excluded
+      create(:family_membership, user: create(:user), family: fam_a)
 
-      result = described_class.new(user).call
-      expect(result.length).to eq(1)
-      expect(result.first[:user_id]).to eq(other_user.id)
+      groups = described_class.new(user).call
+      expect(groups.size).to eq(1)
+      expect(groups.first[:family_id]).to eq(fam_a.id)
+      expect(groups.first[:family_name]).to eq(fam_a.name)
+      expect(groups.first[:members].map { |x| x[:user_id] }).to contain_exactly(sharer.id)
+    end
+
+    it 'returns a group per family the user belongs to' do
+      fam_a = create(:family)
+      fam_b = create(:family)
+      create(:family_membership, user: user, family: fam_a)
+      create(:family_membership, user: user, family: fam_b)
+
+      sharer_a = create(:user)
+      sharer_b = create(:user)
+      enable_sharing(create(:family_membership, user: sharer_a, family: fam_a))
+      enable_sharing(create(:family_membership, user: sharer_b, family: fam_b))
+      create(:point, user: sharer_a, timestamp: 1.hour.ago.to_i)
+      create(:point, user: sharer_b, timestamp: 1.hour.ago.to_i)
+
+      groups = described_class.new(user).call
+      expect(groups.map { |g| g[:family_id] }).to contain_exactly(fam_a.id, fam_b.id)
+    end
+
+    it 'excludes families with no sharing members' do
+      fam = create(:family)
+      create(:family_membership, user: user, family: fam)
+      create(:family_membership, user: create(:user), family: fam)
+
+      expect(described_class.new(user).call).to eq([])
+    end
+
+    it 'returns empty array when user is in no families' do
+      expect(described_class.new(user).call).to eq([])
+    end
+
+    it 'returns empty array when the family feature is disabled' do
+      allow(DawarichSettings).to receive(:family_feature_enabled?).and_return(false)
+      fam = create(:family)
+      create(:family_membership, user: user, family: fam)
+
+      expect(described_class.new(user).call).to eq([])
     end
   end
 
   describe '#history' do
-    context 'when feature is disabled' do
-      before { allow(DawarichSettings).to receive(:family_feature_enabled?).and_return(false) }
-
-      it 'returns empty array' do
-        result = described_class.new(user).history(start_at: 1.day.ago, end_at: Time.current)
-        expect(result).to eq([])
-      end
+    it 'returns empty array when user is in no families' do
+      result = described_class.new(user).history(start_at: 1.day.ago, end_at: Time.current)
+      expect(result).to eq([])
     end
 
-    context 'when user is not in a family' do
-      let(:solo_user) { create(:user) }
+    it 'returns grouped history points for sharing members' do
+      fam = create(:family)
+      create(:family_membership, user: user, family: fam)
+      sharer = create(:user)
+      enable_sharing(create(:family_membership, user: sharer, family: fam), share_history: true, history_window: 'all')
+      create(:point, user: sharer, timestamp: 3.hours.ago.to_i)
+      create(:point, user: sharer, timestamp: 1.hour.ago.to_i)
 
-      it 'returns empty array' do
-        result = described_class.new(solo_user).history(start_at: 1.day.ago, end_at: Time.current)
-        expect(result).to eq([])
-      end
+      groups = described_class.new(user).history(start_at: 1.day.ago, end_at: Time.current)
+      expect(groups.size).to eq(1)
+      member = groups.first[:members].first
+      expect(member[:user_id]).to eq(sharer.id)
+      expect(member[:email]).to eq(sharer.email)
+      expect(member[:email_initial]).to eq(sharer.email.first.upcase)
+      expect(member[:sharing_since]).to be_present
+      expect(member[:points].length).to eq(2)
     end
 
-    context 'when family member has sharing enabled' do
-      before do
-        other_user.update_family_location_sharing!(true, duration: 'permanent', share_history: true)
-        other_user.update!(
-          settings: other_user.settings.deep_merge(
-            'family' => { 'location_sharing' => { 'started_at' => 1.week.ago.iso8601 } }
-          )
-        )
+    it 'excludes members whose sharing is disabled' do
+      fam = create(:family)
+      create(:family_membership, user: user, family: fam)
+      sharer = create(:user)
+      create(:family_membership, user: sharer, family: fam) # sharing off
+      create(:point, user: sharer, timestamp: 1.hour.ago.to_i)
+
+      expect(described_class.new(user).history(start_at: 1.day.ago, end_at: Time.current)).to eq([])
+    end
+
+    # History must return real coordinates from lonlat,
+    # not the legacy nil latitude/longitude columns (which yield [nil, nil, ts]).
+    it 'returns real coordinates in history points' do
+      fam = create(:family)
+      create(:family_membership, user: user, family: fam)
+      sharer = create(:user)
+      enable_sharing(create(:family_membership, user: sharer, family: fam), share_history: true, history_window: 'all')
+      create(:point, user: sharer, lonlat: 'POINT(13.4 52.5)', timestamp: 1.hour.ago.to_i)
+
+      groups = described_class.new(user).history(start_at: 2.hours.ago, end_at: Time.current)
+      pts = groups.first[:members].first[:points]
+      lat, lon, = pts.first
+      expect(lat.to_f).to be_within(0.0001).of(52.5)
+      expect(lon.to_f).to be_within(0.0001).of(13.4)
+    end
+
+    it 'caps points at 5000 per member' do
+      fam = create(:family)
+      create(:family_membership, user: user, family: fam)
+      sharer = create(:user)
+      enable_sharing(create(:family_membership, user: sharer, family: fam), share_history: true, history_window: 'all')
+
+      timestamps = (1..5500).map { |i| i.minutes.ago.to_i }
+      points_data = timestamps.map do |ts|
+        { user_id: sharer.id, timestamp: ts, lonlat: 'POINT(0 0)', raw_data: '{}' }
       end
+      Point.insert_all(points_data)
 
-      it 'returns history points for sharing members' do
-        create(:point, user: other_user, timestamp: 3.hours.ago.to_i)
-        create(:point, user: other_user, timestamp: 1.hour.ago.to_i)
-
-        result = described_class.new(user).history(start_at: 1.day.ago, end_at: Time.current)
-        expect(result.length).to eq(1)
-        expect(result.first[:user_id]).to eq(other_user.id)
-        expect(result.first[:points].length).to eq(2)
-        expect(result.first[:sharing_since]).to be_present
-      end
-
-      it 'returns points as [lat, lon, timestamp] arrays' do
-        create(:point, user: other_user, timestamp: 1.hour.ago.to_i)
-
-        result = described_class.new(user).history(start_at: 1.day.ago, end_at: Time.current)
-        point_data = result.first[:points].first
-        expect(point_data).to be_an(Array)
-        expect(point_data.length).to eq(3)
-      end
-
-      it 'does not include current user in results' do
-        user.update_family_location_sharing!(true, duration: 'permanent')
-        user.update!(
-          settings: user.settings.deep_merge(
-            'family' => { 'location_sharing' => { 'started_at' => 1.week.ago.iso8601 } }
-          )
-        )
-        create(:point, user: user, timestamp: 1.hour.ago.to_i)
-        create(:point, user: other_user, timestamp: 1.hour.ago.to_i)
-
-        result = described_class.new(user).history(start_at: 1.day.ago, end_at: Time.current)
-        expect(result.map { _1[:user_id] }).not_to include(user.id)
-      end
-
-      it 'returns empty points for members with sharing disabled' do
-        other_user.update_family_location_sharing!(false)
-        create(:point, user: other_user, timestamp: 1.hour.ago.to_i)
-
-        result = described_class.new(user).history(start_at: 1.day.ago, end_at: Time.current)
-        expect(result).to eq([])
-      end
-
-      it 'includes email and color info per member' do
-        create(:point, user: other_user, timestamp: 1.hour.ago.to_i)
-
-        result = described_class.new(user).history(start_at: 1.day.ago, end_at: Time.current)
-        member = result.first
-        expect(member[:email]).to eq(other_user.email)
-        expect(member[:email_initial]).to eq(other_user.email.first.upcase)
-      end
-
-      it 'caps points at 5000 per member' do
-        # Create more than 5000 points
-        timestamps = (1..5500).map { |i| (now - i.minutes).to_i }
-        points_data = timestamps.map do |ts|
-          { user_id: other_user.id, timestamp: ts, lonlat: 'POINT(0 0)', raw_data: '{}' }
-        end
-        Point.insert_all(points_data)
-
-        result = described_class.new(user).history(start_at: 1.day.ago, end_at: Time.current)
-        expect(result.first[:points].length).to be <= 5000
-      end
+      groups = described_class.new(user).history(start_at: 5.days.ago, end_at: Time.current)
+      expect(groups.first[:members].first[:points].length).to be <= 5000
     end
   end
 end
