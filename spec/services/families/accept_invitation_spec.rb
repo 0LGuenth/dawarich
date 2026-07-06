@@ -12,7 +12,7 @@ RSpec.describe Families::AcceptInvitation do
     context 'when invitation can be accepted' do
       it 'creates membership for user' do
         expect { service.call }.to change(Family::Membership, :count).by(1)
-        membership = invitee.reload.family_membership
+        membership = invitee.reload.family_memberships.first
         expect(membership.family).to eq(family)
         expect(membership.role).to eq('member')
       end
@@ -42,21 +42,14 @@ RSpec.describe Families::AcceptInvitation do
       let(:other_family) { create(:family) }
       let!(:existing_membership) { create(:family_membership, user: invitee, family: other_family) }
 
-      it 'returns false' do
-        expect(service.call).to be false
+      it 'lets a user already in a family join another via invitation' do
+        expect(service.call).to be(true)
+        expect(invitee.reload.families.count).to eq(2)
+        expect(invitation.reload).to be_accepted
       end
 
-      it 'does not create membership' do
-        expect { service.call }.not_to change(Family::Membership, :count)
-      end
-
-      it 'sets appropriate error message' do
-        service.call
-        expect(service.error_message).to eq('You must leave your current family before joining a new one.')
-      end
-
-      it 'does not change user family' do
-        expect { service.call }.not_to(change { invitee.reload.family })
+      it 'creates a second membership' do
+        expect { service.call }.to change(Family::Membership, :count).by(1)
       end
     end
 

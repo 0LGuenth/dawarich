@@ -13,12 +13,6 @@ module Families
     def call
       return false unless can_accept?
 
-      if user.in_family?
-        @error_message = 'You must leave your current family before joining a new one.'
-
-        return false
-      end
-
       ActiveRecord::Base.transaction do
         create_membership
         update_invitation
