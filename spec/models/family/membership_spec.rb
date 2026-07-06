@@ -101,6 +101,124 @@ RSpec.describe Family::Membership, type: :model do
     end
   end
 
+  describe '#history_points' do
+    let(:user) { create(:user) }
+    let(:membership) { create(:family_membership, user: user) }
+
+    it 'returns Point.none when sharing is not active' do
+      expect(membership.history_points(start_at: 2.days.ago, end_at: Time.current)).to eq(Point.none)
+    end
+
+    it 'returns Point.none when sharing is active but share_history is false' do
+      membership.update_sharing!(true, duration: 'permanent', share_history: false)
+
+      expect(membership.history_points(start_at: 2.days.ago, end_at: Time.current)).to eq(Point.none)
+    end
+
+    it 'returns Point.none when sharing_started_at is nil' do
+      membership.update_columns(sharing_enabled: true, share_history: true, sharing_started_at: nil)
+
+      expect(membership.history_points(start_at: 2.days.ago, end_at: Time.current)).to eq(Point.none)
+    end
+
+    it "returns the user's points within the window, ordered by timestamp asc" do
+      membership.update_sharing!(true, duration: 'permanent', share_history: true, history_window: 'all')
+      membership.update_columns(sharing_started_at: 3.days.ago)
+
+      newest = create(:point, user: user, lonlat: 'POINT(1 1)', timestamp: 1.hour.ago.to_i)
+      middle = create(:point, user: user, lonlat: 'POINT(2 2)', timestamp: 12.hours.ago.to_i)
+      oldest = create(:point, user: user, lonlat: 'POINT(3 3)', timestamp: 1.day.ago.to_i)
+
+      result = membership.history_points(start_at: 2.days.ago, end_at: Time.current)
+
+      expect(result.to_a).to eq([oldest, middle, newest])
+    end
+
+    it 'exposes real coordinates from lonlat (regression #2977)' do
+      membership.update_sharing!(true, duration: 'permanent', share_history: true, history_window: 'all')
+      membership.update_columns(sharing_started_at: 3.days.ago)
+
+      create(:point, user: user, lonlat: 'POINT(13.4 52.5)', timestamp: 1.hour.ago.to_i)
+
+      point = membership.history_points(start_at: 2.days.ago, end_at: Time.current).first
+
+      expect(point.lat).to be_within(0.01).of(52.5)
+      expect(point.lon).to be_within(0.01).of(13.4)
+    end
+
+    it 'returns Point.none when effective_start is at or after end_at' do
+      membership.update_sharing!(true, duration: 'permanent', share_history: true, history_window: 'all')
+
+      # sharing_started_at defaults to Time.current, so an end_at in the past
+      # makes effective_start >= end_at.
+      expect(membership.history_points(start_at: 2.days.ago, end_at: 1.hour.ago)).to eq(Point.none)
+    end
+
+    it "clamps to the history_window: '24h' excludes points older than 24 hours" do
+      membership.update_sharing!(true, duration: 'permanent', share_history: true, history_window: '24h')
+      membership.update_columns(sharing_started_at: 10.days.ago)
+
+      old_point = create(:point, user: user, lonlat: 'POINT(4 4)', timestamp: 5.days.ago.to_i)
+      recent_point = create(:point, user: user, lonlat: 'POINT(5 5)', timestamp: 1.hour.ago.to_i)
+
+      result = membership.history_points(start_at: 30.days.ago, end_at: Time.current)
+
+      expect(result.to_a).to include(recent_point)
+      expect(result.to_a).not_to include(old_point)
+    end
+  end
+
+  describe '#latest_location' do
+    let(:user) { create(:user) }
+    let(:membership) { create(:family_membership, user: user) }
+
+    it 'returns nil when sharing is not active' do
+      create(:point, user: user, lonlat: 'POINT(13.4 52.5)', timestamp: 1.hour.ago.to_i)
+
+      expect(membership.latest_location).to be_nil
+    end
+
+    it "returns a hash with the newest point's coordinates when active" do
+      create(:point, user: user, lonlat: 'POINT(1 1)', timestamp: 2.days.ago.to_i)
+      create(:point, user: user, lonlat: 'POINT(13.4 52.5)', timestamp: 1.hour.ago.to_i)
+
+      membership.update_sharing!(true, duration: 'permanent')
+
+      result = membership.latest_location
+
+      expect(result[:latitude]).to be_within(0.01).of(52.5)
+      expect(result[:longitude]).to be_within(0.01).of(13.4)
+      expect(result[:user_id]).to eq(user.id)
+      expect(result[:email]).to eq(user.email)
+    end
+  end
+
+  describe 'cleanup_on_departure (after_destroy)' do
+    let(:user) { create(:user) }
+    let(:family) { create(:family) }
+    let(:membership) { create(:family_membership, user: user, family: family) }
+
+    it "expires this family's pending requests involving the user" do
+      as_requester = create(:family_location_request, family: family, requester: user, status: :pending)
+      as_target = create(:family_location_request, family: family, target_user: user, status: :pending)
+
+      membership.destroy
+
+      expect(as_requester.reload.status).to eq('expired')
+      expect(as_target.reload.status).to eq('expired')
+    end
+
+    it 'does not expire pending requests in a different family' do
+      other_family = create(:family)
+      create(:family_membership, user: user, family: other_family)
+      other_request = create(:family_location_request, family: other_family, requester: user, status: :pending)
+
+      membership.destroy
+
+      expect(other_request.reload.status).to eq('pending')
+    end
+  end
+
   describe 'role assignment' do
     let(:family) { create(:family) }
 
