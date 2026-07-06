@@ -56,6 +56,51 @@ RSpec.describe Family::Membership, type: :model do
     end
   end
 
+  describe 'per-membership sharing' do
+    let(:user) { create(:user) }
+    let(:membership) { create(:family_membership, user: user) }
+
+    it 'is inactive by default' do
+      expect(membership.sharing_active?).to be(false)
+    end
+
+    it 'activates sharing with a duration and sets started_at' do
+      membership.update_sharing!(true, duration: '1h')
+      expect(membership.sharing_active?).to be(true)
+      expect(membership.sharing_started_at).to be_present
+      expect(membership.sharing_expires_at).to be_within(2.minutes).of(1.hour.from_now)
+    end
+
+    it 'expires: enabled but past expiry is not active' do
+      membership.update!(sharing_enabled: true, sharing_expires_at: 1.hour.ago)
+      expect(membership.sharing_active?).to be(false)
+    end
+
+    it 'permanent duration leaves expiry nil and stays active' do
+      membership.update_sharing!(true, duration: 'permanent')
+      expect(membership.sharing_expires_at).to be_nil
+      expect(membership.sharing_active?).to be(true)
+    end
+
+    it 'disabling clears active state' do
+      membership.update_sharing!(true, duration: 'permanent')
+      membership.update_sharing!(false)
+      expect(membership.sharing_active?).to be(false)
+    end
+
+    it 'sharing is independent per family' do
+      other = create(:family_membership, user: user)
+      membership.update_sharing!(true, duration: 'permanent')
+      expect(membership.sharing_active?).to be(true)
+      expect(other.sharing_active?).to be(false)
+    end
+
+    it 'validates history_window, falling back to 24h' do
+      membership.update_sharing!(true, duration: 'permanent', history_window: 'bogus')
+      expect(membership.history_window).to eq('24h')
+    end
+  end
+
   describe 'role assignment' do
     let(:family) { create(:family) }
 
