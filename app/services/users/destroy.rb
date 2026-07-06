@@ -21,15 +21,15 @@ class Users::Destroy
     ActiveRecord::Base.transaction do
       # Validate inside transaction to prevent TOCTOU race
       # (a member could join/leave between check and delete if outside)
-      created_family = Family.find_by(creator_id: user_id)
-      if created_family
-        member_count = Family::Membership.where(family_id: created_family.id).count
-        if member_count > 1
-          error_message = 'Cannot delete user who owns a family with other members'
-          Rails.logger.warn "#{error_message}: user_id=#{user_id}"
-          user.errors.add(:base, error_message)
-          raise ActiveRecord::RecordInvalid, user
-        end
+      # Mirrors User#can_delete_account? but re-checked here inside the
+      # transaction to stay TOCTOU-safe. Keep the two rules in sync.
+      created_families = Family.where(creator_id: user_id).to_a
+      blocking = created_families.find { |f| Family::Membership.where(family_id: f.id).count > 1 }
+      if blocking
+        error_message = 'Cannot delete user who owns a family with other members'
+        Rails.logger.warn "#{error_message}: user_id=#{user_id}"
+        user.errors.add(:base, error_message)
+        raise ActiveRecord::RecordInvalid, user
       end
 
       # Delete associated records first (dependent: :destroy associations)
@@ -74,10 +74,10 @@ class Users::Destroy
       # Delete ALL family memberships for this user (using direct query to avoid association cache issues)
       Family::Membership.where(user_id: user.id).delete_all
 
-      # If user created a family, delete all remaining memberships and the family
-      # Reuses created_family from the validation check above
-      if created_family
-        # Delete location requests referencing this family before deleting the family
+      # Delete every family this user created (each has only this user as member left).
+      # Reuses created_families from the validation check above.
+      created_families.each do |created_family|
+        # Delete location requests referencing this family before deleting the family (FK)
         Family::LocationRequest.where(family_id: created_family.id).delete_all
         Family::Membership.where(family_id: created_family.id).delete_all
         created_family.delete

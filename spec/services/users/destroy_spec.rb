@@ -314,6 +314,35 @@ RSpec.describe Users::Destroy do
           expect(Family.where(id: family_id).count).to eq(0)
         end
       end
+
+      describe 'multi-family owner deletion' do
+        it 'blocks deletion when any created family has other members' do
+          user = create(:user)
+          solo = create(:family, creator: user)
+          create(:family_membership, :owner, user: user, family: solo)
+          shared = create(:family, creator: user)
+          create(:family_membership, :owner, user: user, family: shared)
+          create(:family_membership, user: create(:user), family: shared)
+
+          expect { described_class.new(user).call }.to raise_error(
+            ActiveRecord::RecordInvalid,
+            /Cannot delete user who owns a family with other members/
+          )
+          expect(User.exists?(user.id)).to be(true)
+        end
+
+        it 'deletes the user and all solo created families' do
+          user = create(:user)
+          fam1 = create(:family, creator: user)
+          create(:family_membership, :owner, user: user, family: fam1)
+          fam2 = create(:family, creator: user)
+          create(:family_membership, :owner, user: user, family: fam2)
+
+          expect(described_class.new(user).call).to be(true)
+          expect(Family.exists?(fam1.id)).to be(false)
+          expect(Family.exists?(fam2.id)).to be(false)
+        end
+      end
     end
 
     context 'with user as family member only' do
