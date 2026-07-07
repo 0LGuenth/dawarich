@@ -12,10 +12,10 @@ RSpec.describe 'Family Workflows', type: :request do
       # Step 1: User1 creates a family
       sign_in user1
 
-      get '/family/new'
+      get new_family_path
       expect(response).to have_http_status(:ok)
 
-      post '/family', params: { family: { name: 'The Smith Family' } }
+      post families_path, params: { family: { name: 'The Smith Family' } }
 
       # The redirect should be to the newly created family
       expect(response).to have_http_status(:found)
@@ -23,14 +23,14 @@ RSpec.describe 'Family Workflows', type: :request do
       expect(family).to be_present
       expect(family.name).to eq('The Smith Family')
       expect(family.creator).to eq(user1)
-      expect(user1.reload.family).to eq(family)
-      expect(user1.family_owner?).to be true
+      expect(user1.reload.member_of?(family)).to be true
+      expect(user1.owner_of?(family)).to be true
 
       # Step 2: User1 invites User2
-      post '/family/invitations', params: {
+      post family_invitations_path(family), params: {
         family_invitation: { email: user2.email }
       }
-      expect(response).to redirect_to(family_path)
+      expect(response).to redirect_to(family_path(family))
 
       invitation = family.family_invitations.find_by(email: user2.email)
       expect(invitation).to be_present
@@ -48,15 +48,15 @@ RSpec.describe 'Family Workflows', type: :request do
       # User2 accepts invitation
       sign_in user2
       post accept_family_invitation_path(token: invitation.token)
-      expect(response).to redirect_to(family_path)
+      expect(response).to redirect_to(family_path(family))
 
-      expect(user2.reload.family).to eq(family)
-      expect(user2.family_owner?).to be false
+      expect(user2.reload.member_of?(family)).to be true
+      expect(user2.owner_of?(family)).to be false
       expect(invitation.reload.accepted?).to be true
 
       # Step 4: User1 invites User3
       sign_in user1
-      post '/family/invitations', params: {
+      post family_invitations_path(family), params: {
         family_invitation: { email: user3.email }
       }
 
@@ -68,19 +68,20 @@ RSpec.describe 'Family Workflows', type: :request do
       sign_in user3
       post accept_family_invitation_path(token: invitation2.token)
 
-      expect(user3.reload.family).to eq(family)
+      expect(user3.reload.member_of?(family)).to be true
       expect(family.reload.members.count).to eq(3)
 
       # Step 6: Family owner views members on family show page
       sign_in user1
-      get '/family'
+      get family_path(family)
       expect(response).to have_http_status(:ok)
 
       # Step 7: Owner removes a member
-      delete "/family/members/#{user2.family_membership.id}"
-      expect(response).to redirect_to(family_path)
+      user2_membership = user2.membership_for(family)
+      delete family_member_path(family, user2_membership)
+      expect(response).to redirect_to(family_path(family))
 
-      expect(user2.reload.family).to be_nil
+      expect(user2.reload.member_of?(family)).to be false
       expect(family.reload.members.count).to eq(2)
       expect(family.members).to include(user1, user3)
       expect(family.members).not_to include(user2)
@@ -106,12 +107,12 @@ RSpec.describe 'Family Workflows', type: :request do
       post accept_family_invitation_path(token: invitation.token)
       expect(response).to redirect_to(root_path)
 
-      expect(user2.reload.family).to be_nil
+      expect(user2.reload.member_of?(family)).to be false
       expect(invitation.reload.pending?).to be true
     end
   end
 
-  describe 'Multiple family membership prevention workflow' do
+  describe 'Multiple family membership workflow' do
     let(:family1) { create(:family, name: 'Family 1', creator: user1) }
     let(:family2) { create(:family, name: 'Family 2', creator: user2) }
     let!(:user1_membership) { create(:family_membership, user: user1, family: family1, role: :owner) }
@@ -119,19 +120,20 @@ RSpec.describe 'Family Workflows', type: :request do
     let!(:invitation1) { create(:family_invitation, family: family1, email: user3.email, invited_by: user1) }
     let!(:invitation2) { create(:family_invitation, family: family2, email: user3.email, invited_by: user2) }
 
-    it 'prevents users from joining multiple families' do
+    it 'allows users to join multiple families' do
       # User3 accepts invitation to Family 1
       sign_in user3
       post accept_family_invitation_path(token: invitation1.token)
-      expect(response).to redirect_to(family_path)
-      expect(user3.family).to eq(family1)
+      expect(response).to redirect_to(family_path(family1))
+      expect(user3.member_of?(family1)).to be true
 
-      # User3 tries to accept invitation to Family 2
+      # User3 accepts invitation to Family 2 as well
       post accept_family_invitation_path(token: invitation2.token)
-      expect(response).to redirect_to(root_path)
-      expect(flash[:alert]).to include('You must leave your current family')
+      expect(response).to redirect_to(family_path(family2))
 
-      expect(user3.reload.family).to eq(family1) # Still in first family
+      expect(user3.reload.member_of?(family1)).to be true
+      expect(user3.reload.member_of?(family2)).to be true
+      expect(user3.families).to contain_exactly(family1, family2)
     end
   end
 
@@ -143,40 +145,38 @@ RSpec.describe 'Family Workflows', type: :request do
     it 'prevents owner from leaving when members exist' do
       sign_in user1
 
-      # Owner tries to leave family with members (using memberships destroy route)
-      owner_membership = user1.family_membership
-      delete "/family/members/#{owner_membership.id}"
-      expect(response).to redirect_to(family_path)
+      # Owner tries to leave family (using memberships destroy route)
+      delete family_member_path(family, owner_membership)
+      expect(response).to redirect_to(family_path(family))
       follow_redirect!
       expect(response.body).to include('cannot remove their own membership')
 
-      expect(user1.reload.family).to eq(family)
-      expect(user1.family_owner?).to be true
+      expect(user1.reload.member_of?(family)).to be true
+      expect(user1.owner_of?(family)).to be true
     end
 
-    it 'allows owner to leave when they are the only member' do
+    it 'prevents owner from leaving even when they are the only member' do
       sign_in user1
 
       # Remove the member first
-      delete "/family/members/#{member_membership.id}"
+      delete family_member_path(family, member_membership)
 
       # Owner cannot leave even when alone - they must delete the family instead
-      owner_membership = user1.reload.family_membership
-      delete "/family/members/#{owner_membership.id}"
-      expect(response).to redirect_to(family_path)
+      delete family_member_path(family, owner_membership)
+      expect(response).to redirect_to(family_path(family))
       follow_redirect!
       expect(response.body).to include('cannot remove their own membership')
 
-      expect(user1.reload.family).to eq(family)
+      expect(user1.reload.member_of?(family)).to be true
     end
 
     it 'allows members to leave freely' do
       sign_in user2
 
-      delete "/family/members/#{member_membership.id}"
-      expect(response).to redirect_to(new_family_path)
+      delete family_member_path(family, member_membership)
+      expect(response).to redirect_to(families_path)
 
-      expect(user2.reload.family).to be_nil
+      expect(user2.reload.member_of?(family)).to be false
       expect(family.reload.members.count).to eq(1)
       expect(family.members).to include(user1)
       expect(family.members).not_to include(user2)
@@ -194,10 +194,10 @@ RSpec.describe 'Family Workflows', type: :request do
         sign_in user1
 
         expect do
-          delete '/family'
+          delete family_path(family)
         end.not_to change(Family, :count)
 
-        expect(response).to redirect_to(family_path)
+        expect(response).to redirect_to(family_path(family))
         follow_redirect!
         expect(response.body).to include('Cannot delete family with members')
       end
@@ -207,11 +207,11 @@ RSpec.describe 'Family Workflows', type: :request do
       sign_in user1
 
       expect do
-        delete '/family'
+        delete family_path(family)
       end.to change(Family, :count).by(-1)
 
-      expect(response).to redirect_to(new_family_path)
-      expect(user1.reload.family).to be_nil
+      expect(response).to redirect_to(families_path)
+      expect(user1.reload.member_of?(family)).to be false
     end
   end
 
@@ -223,31 +223,31 @@ RSpec.describe 'Family Workflows', type: :request do
     it 'enforces proper authorization for family management' do
       # Member cannot invite others
       sign_in user2
-      post '/family/invitations', params: {
+      post family_invitations_path(family), params: {
         family_invitation: { email: user3.email }
       }
       expect(response).to have_http_status(:see_other)
       expect(flash[:alert]).to include('not authorized')
 
       # Member cannot remove other members
-      delete "/family/members/#{owner_membership.id}"
+      delete family_member_path(family, owner_membership)
       expect(response).to have_http_status(:see_other)
       expect(flash[:alert]).to include('not authorized')
 
       # Member cannot edit family
-      patch '/family', params: { family: { name: 'Hacked Family' } }
+      patch family_path(family), params: { family: { name: 'Hacked Family' } }
       expect(response).to have_http_status(:see_other)
       expect(flash[:alert]).to include('not authorized')
 
       # Member cannot delete family
-      delete '/family'
+      delete family_path(family)
       expect(response).to have_http_status(:see_other)
       expect(flash[:alert]).to include('not authorized')
 
       # Outsider cannot access family
       sign_in user3
-      get '/family'
-      expect(response).to redirect_to(new_family_path)
+      get family_path(family)
+      expect(response).to have_http_status(:not_found)
     end
   end
 
@@ -260,7 +260,7 @@ RSpec.describe 'Family Workflows', type: :request do
 
       # Mock email delivery
       expect do
-        post '/family/invitations', params: {
+        post family_invitations_path(family), params: {
           family_invitation: { email: 'newuser@example.com' }
         }
       end.to change(Family::Invitation, :count).by(1)
@@ -276,20 +276,21 @@ RSpec.describe 'Family Workflows', type: :request do
     it 'handles proper redirects for family-related navigation' do
       # User without family can access new family page
       sign_in user1
-      get '/family/new'
+      get new_family_path
       expect(response).to have_http_status(:ok)
 
       # User creates family
-      post '/family', params: { family: { name: 'Test Family' } }
+      post families_path, params: { family: { name: 'Test Family' } }
       expect(response).to have_http_status(:found)
+      family = Family.find_by(name: 'Test Family')
 
       # User with family can view their family
-      get '/family'
+      get family_path(family)
       expect(response).to have_http_status(:ok)
 
-      # User with family gets redirected from new family page
-      get '/family/new'
-      expect(response).to redirect_to(family_path)
+      # User with family can still access the new family page (multi-family allowed)
+      get new_family_path
+      expect(response).to have_http_status(:ok)
     end
   end
 end

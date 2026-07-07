@@ -60,7 +60,7 @@ class Families::CreateLocationRequest
     safe_email = ERB::Util.html_escape(requester.email)
     link = ActionController::Base.helpers.link_to(
       'View Request',
-      Rails.application.routes.url_helpers.family_location_request_path(request),
+      Rails.application.routes.url_helpers.family_location_request_path(request.family, request),
       class: 'link link-primary'
     )
 

@@ -19,11 +19,11 @@ RSpec.describe 'Family#show member-remove action', type: :request do
   before { sign_in owner }
 
   it 'renders a remove control targeted at the other member when the owner views the family' do
-    get family_path
+    get family_path(family)
 
     expect(response).to have_http_status(:ok)
-    expect(response.body).to include(family_member_path(other_member_membership)),
+    expect(response.body).to include(family_member_path(family, other_member_membership)),
                              'Family#show should render a DELETE link/button to ' \
-                             "#{family_member_path(other_member_membership)} so the owner can"
+                             "#{family_member_path(family, other_member_membership)} so the owner can"
   end
 end

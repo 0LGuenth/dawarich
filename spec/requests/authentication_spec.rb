@@ -252,7 +252,7 @@ RSpec.describe 'Authentication', type: :request do
         invitation_token: invitation.token
       }
 
-      expect(response).to redirect_to(family_invitation_path(invitation.token))
+      expect(response).to redirect_to(public_invitation_path(invitation.token))
     end
 
     it 'redirects to invitation page when signing in with invitation token in session' do
@@ -265,7 +265,7 @@ RSpec.describe 'Authentication', type: :request do
         user: { email: invitee.email, password: 'password123456' }
       }
 
-      expect(response).to redirect_to(family_invitation_path(invitation.token))
+      expect(response).to redirect_to(public_invitation_path(invitation.token))
     end
 
     it 'prioritizes invitation over iOS flow when both are present' do
@@ -278,7 +278,7 @@ RSpec.describe 'Authentication', type: :request do
       }
 
       # Should redirect to invitation page, NOT iOS success
-      expect(response).to redirect_to(family_invitation_path(invitation.token))
+      expect(response).to redirect_to(public_invitation_path(invitation.token))
       expect(response.location).not_to include('auth/ios/success')
     end
 

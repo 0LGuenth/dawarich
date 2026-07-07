@@ -62,7 +62,7 @@ class ApplicationController < ActionController::Base
     invitation_token = params[:invitation_token] || session[:invitation_token]
     if invitation_token.present?
       invitation = Family::Invitation.find_by(token: invitation_token)
-      return family_invitation_path(invitation.token) if invitation&.can_be_accepted?
+      return public_invitation_path(invitation.token) if invitation&.can_be_accepted?
     end
 
     # Handle mobile client flow (iOS and Android)

@@ -9,5 +9,11 @@ FactoryBot.define do
     trait :owner do
       role { :owner }
     end
+
+    trait :sharing do
+      sharing_enabled { true }
+      sharing_started_at { Time.current }
+      sharing_duration { 'permanent' }
+    end
   end
 end

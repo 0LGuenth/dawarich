@@ -20,7 +20,7 @@
             <p class="text-lg"><%= time_ago_in_words(@request.expires_at) %> from now</p>
           </div>
 
-          <%= form_with url: accept_family_location_request_path(@request), method: :patch, class: "space-y-4 mt-6" do |f| %>
+          <%= form_with url: accept_family_location_request_path(@family, @request), method: :patch, class: "space-y-4 mt-6" do |f| %>
             <div class="form-control">
               <label class="label">
                 <span class="label-text">Share location for</span>
@@ -39,7 +39,7 @@
             </div>
           <% end %>
 
-          <%= button_to "Decline", decline_family_location_request_path(@request),
+          <%= button_to "Decline", decline_family_location_request_path(@family, @request),
               method: :patch, class: "btn btn-outline btn-warning w-full mt-2" %>
         <% else %>
           <div class="mt-4">

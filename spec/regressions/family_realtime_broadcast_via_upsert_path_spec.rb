@@ -7,11 +7,12 @@ RSpec.describe 'Family realtime broadcast survives upsert_all ingest path' do
   let(:owner) { family.creator }
   let(:sharer) { create(:user) }
 
+  let!(:sharer_membership) { create(:family_membership, family: family, user: sharer, role: :member) }
+
   before do
     allow(DawarichSettings).to receive(:family_feature_enabled?).and_return(true)
     create(:family_membership, family: family, user: owner, role: :owner)
-    create(:family_membership, family: family, user: sharer, role: :member)
-    sharer.update_family_location_sharing!(true, duration: 'permanent')
+    sharer_membership.update_sharing!(true, duration: 'permanent')
     sharer.settings['live_map_enabled'] = true
     sharer.save!
   end
@@ -55,7 +56,7 @@ RSpec.describe 'Family realtime broadcast survives upsert_all ingest path' do
   end
 
   it 'does not broadcast to FamilyLocationsChannel when the sharer has disabled family sharing' do
-    sharer.update_family_location_sharing!(false)
+    sharer_membership.update_sharing!(false)
 
     expect do
       OwnTracks::PointCreator.new(ActionController::Parameters.new(owntracks_payload).permit!, sharer.id).call

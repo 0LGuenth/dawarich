@@ -82,14 +82,14 @@ RSpec.describe 'Users::Registrations', type: :request do
 
         new_user = User.find_by(email: invitation.email)
         expect(new_user).to be_present
-        expect(new_user.family).to eq(family)
+        expect(new_user.member_of?(family)).to be true
         expect(family.reload.members).to include(new_user)
       end
 
       it 'redirects to family page after successful registration' do
         post user_registration_path, params: request_params
 
-        expect(response).to redirect_to(family_path)
+        expect(response).to redirect_to(family_path(family))
       end
 
       it 'displays success message with family name' do
@@ -115,7 +115,7 @@ RSpec.describe 'Users::Registrations', type: :request do
         end.to change(User, :count).by(1)
 
         new_user = User.find_by(email: 'user@example.com')
-        expect(new_user.family).to be_nil
+        expect(new_user.in_family?).to be false
       end
     end
 
@@ -133,7 +133,7 @@ RSpec.describe 'Users::Registrations', type: :request do
         end.to change(User, :count).by(1)
 
         new_user = User.find_by(email: 'different@example.com')
-        expect(new_user.family).to be_nil
+        expect(new_user.in_family?).to be false
         expect(invitation.reload.status).to eq('pending')
       end
     end
@@ -221,7 +221,7 @@ RSpec.describe 'Users::Registrations', type: :request do
           }
         end.to change(User, :count).by(1)
 
-        expect(response).to redirect_to(family_path)
+        expect(response).to redirect_to(family_path(family))
       end
     end
 
@@ -304,7 +304,7 @@ RSpec.describe 'Users::Registrations', type: :request do
       }
 
       new_user = User.find_by(email: invitation.email)
-      expect(new_user.family).to eq(family)
+      expect(new_user.member_of?(family)).to be true
     end
 
     it 'handles session-stored invitation token' do
@@ -818,7 +818,7 @@ RSpec.describe 'Users::Registrations', type: :request do
         user = User.find_by(email: invitation.email)
         expect(user.utm_source).to eq('google')
         expect(user.utm_campaign).to eq('winter_2025')
-        expect(user.family).to eq(family)
+        expect(user.member_of?(family)).to be true
       end
     end
 
