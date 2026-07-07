@@ -1423,21 +1423,14 @@ export default class extends Controller {
       const locations = data.locations || []
       const groups = data.groups || []
 
-      // Update family layer with the deduped flat locations (one pin per user)
-      const familyLayer = this.layerManager.getLayer("family")
-      if (familyLayer) {
-        familyLayer.loadMembers(locations)
-      }
-
-      // Update family count in badge (deduped members)
-      this._familyMemberCount = locations.length
-      this.updateLoadingCounts({
-        counts: { family: locations.length },
-        isComplete: true,
-      })
+      // Stash the full deduped list; pins are filtered by per-family visibility
+      this._allLocations = locations
 
       // Render family members grouped by family
       this.renderFamilyGroups(groups)
+
+      // Feed the family layer the currently-visible subset (one pin per user)
+      this.applyFamilyVisibility()
 
       Toast.success(`Loaded ${locations.length} family member(s)`)
 
@@ -1529,15 +1522,37 @@ export default class extends Controller {
       return
     }
 
+    // Lazily initialize the enabled-family set; default new families to visible
+    if (!this._enabledFamilies) this._enabledFamilies = new Set()
+    for (const group of groups) {
+      if (!this._seenFamilies?.has(group.family_id)) {
+        this._enabledFamilies.add(group.family_id)
+      }
+    }
+    this._seenFamilies = new Set(groups.map((g) => g.family_id))
+    this._lastGroups = groups
+
     container.replaceChildren(
       ...groups.map((group) => {
         const section = document.createElement("div")
         section.className = "mb-3"
 
-        const header = document.createElement("div")
+        const header = document.createElement("label")
         header.className =
-          "text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-1"
-        header.textContent = group.family_name
+          "flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-1 cursor-pointer"
+
+        const checkbox = document.createElement("input")
+        checkbox.type = "checkbox"
+        checkbox.className = "toggle toggle-primary toggle-xs"
+        checkbox.checked = this._enabledFamilies.has(group.family_id)
+        checkbox.dataset.action =
+          "change->maps--maplibre#toggleFamilyVisibility"
+        checkbox.dataset.familyId = group.family_id
+
+        const label = document.createElement("span")
+        label.textContent = group.family_name
+
+        header.append(checkbox, label)
         section.appendChild(header)
 
         for (const location of group.members) {
@@ -1546,6 +1561,38 @@ export default class extends Controller {
         return section
       }),
     )
+  }
+
+  toggleFamilyVisibility(event) {
+    const familyId = Number(event.target.dataset.familyId)
+    if (event.target.checked) {
+      this._enabledFamilies.add(familyId)
+    } else {
+      this._enabledFamilies.delete(familyId)
+    }
+    this.applyFamilyVisibility()
+  }
+
+  applyFamilyVisibility() {
+    const familyLayer = this.layerManager.getLayer("family")
+    if (!familyLayer || !this._lastGroups) return
+
+    // A user_id is visible if it appears in ANY enabled family group.
+    const visibleUserIds = new Set()
+    for (const group of this._lastGroups) {
+      if (!this._enabledFamilies.has(group.family_id)) continue
+      for (const member of group.members) visibleUserIds.add(member.user_id)
+    }
+
+    const visible = (this._allLocations || []).filter((loc) =>
+      visibleUserIds.has(loc.user_id),
+    )
+    familyLayer.loadMembers(visible)
+    this._familyMemberCount = visible.length
+    this.updateLoadingCounts({
+      counts: { family: visible.length },
+      isComplete: true,
+    })
   }
 
   buildFamilyMemberRow(location) {
