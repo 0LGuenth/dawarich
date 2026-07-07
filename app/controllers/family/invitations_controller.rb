@@ -33,9 +33,9 @@ class Family::InvitationsController < ApplicationController
     )
 
     if service.call
-      redirect_to family_path, notice: 'Invitation sent successfully!'
+      redirect_to family_path(@family), notice: 'Invitation sent successfully!'
     else
-      redirect_to family_path, alert: service.error_message || 'Failed to send invitation'
+      redirect_to family_path(@family), alert: service.error_message || 'Failed to send invitation'
     end
   end
 
@@ -44,28 +44,28 @@ class Family::InvitationsController < ApplicationController
 
     begin
       if @invitation.update(status: :cancelled)
-        redirect_to family_path, notice: 'Invitation cancelled'
+        redirect_to family_path(@family), notice: 'Invitation cancelled'
       else
-        redirect_to family_path, alert: 'Failed to cancel invitation. Please try again'
+        redirect_to family_path(@family), alert: 'Failed to cancel invitation. Please try again'
       end
     rescue StandardError => e
       Rails.logger.error "Error cancelling family invitation: #{e.message}"
-      redirect_to family_path, alert: 'An unexpected error occurred while cancelling the invitation'
+      redirect_to family_path(@family), alert: 'An unexpected error occurred while cancelling the invitation'
     end
   end
 
   private
 
   def set_family
-    @family = current_user.family
-
-    redirect_to new_family_path, alert: 'You are not in a family' and return unless @family
+    @family = current_user.families.find(params[:family_id])
+  rescue ActiveRecord::RecordNotFound
+    redirect_to families_path, alert: 'Family not found'
   end
 
   def set_invitation_by_id_and_family
     # For authenticated nested routes: /families/:family_id/invitations/:id
     # The :id param contains the token value
-    @family = current_user.family
+    @family = current_user.families.find(params[:family_id])
     @invitation = @family.family_invitations.find_by!(token: params[:id])
   end
 

@@ -16,7 +16,7 @@ class Family::MembershipsController < ApplicationController
     )
 
     if service.call
-      redirect_to family_path, notice: 'Welcome to the family!'
+      redirect_to family_path(@invitation.family), notice: 'Welcome to the family!'
     else
       redirect_to root_path, alert: service.error_message || 'Unable to accept invitation'
     end
@@ -42,27 +42,25 @@ class Family::MembershipsController < ApplicationController
     authorize @membership
 
     member_user = @membership.user
-    service = Families::Memberships::Destroy.new(
-      user: current_user, family: @membership.family, member_to_remove: member_user
-    )
+    service = Families::Memberships::Destroy.new(user: current_user, family: @family, member_to_remove: member_user)
 
     if service.call
       if member_user == current_user
-        redirect_to new_family_path, notice: 'You have left the family'
+        redirect_to families_path, notice: 'You have left the family'
       else
-        redirect_to family_path, notice: "#{member_user.email} has been removed from the family"
+        redirect_to family_path(@family), notice: "#{member_user.email} has been removed from the family"
       end
     else
-      redirect_to family_path, alert: service.error_message || 'Failed to remove member'
+      redirect_to family_path(@family), alert: service.error_message || 'Failed to remove member'
     end
   end
 
   private
 
   def set_family
-    @family = current_user.family
-
-    redirect_to new_family_path, alert: 'You are not in a family' and return unless @family
+    @family = current_user.families.find(params[:family_id])
+  rescue ActiveRecord::RecordNotFound
+    redirect_to families_path, alert: 'Family not found'
   end
 
   def set_membership

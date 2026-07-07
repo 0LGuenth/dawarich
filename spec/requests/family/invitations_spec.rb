@@ -8,12 +8,12 @@ RSpec.describe 'Family::Invitations', type: :request do
   let!(:membership) { create(:family_membership, user: user, family: family, role: :owner) }
   let(:invitation) { create(:family_invitation, family: family, invited_by: user) }
 
-  describe 'GET /family/invitations' do
+  describe 'GET /families/:family_id/invitations' do
     before { sign_in user }
 
     it 'shows pending invitations' do
       invitation # create the invitation
-      get '/family/invitations'
+      get family_invitations_path(family)
       expect(response).to have_http_status(:ok)
     end
 
@@ -23,8 +23,8 @@ RSpec.describe 'Family::Invitations', type: :request do
       before { sign_in outsider }
 
       it 'redirects to families index' do
-        get '/family/invitations'
-        expect(response).to redirect_to(new_family_path)
+        get family_invitations_path(family)
+        expect(response).to redirect_to(families_path)
       end
     end
 
@@ -32,7 +32,7 @@ RSpec.describe 'Family::Invitations', type: :request do
       before { sign_out user }
 
       it 'redirects to login' do
-        get '/family/invitations'
+        get family_invitations_path(family)
         expect(response).to redirect_to(new_user_session_path)
       end
     end
@@ -76,7 +76,7 @@ RSpec.describe 'Family::Invitations', type: :request do
     end
   end
 
-  describe 'POST /family/invitations' do
+  describe 'POST /families/:family_id/invitations' do
     before { sign_in user }
 
     context 'with valid email' do
@@ -86,15 +86,14 @@ RSpec.describe 'Family::Invitations', type: :request do
 
       it 'creates a new invitation' do
         expect do
-          post '/family/invitations', params: valid_params
+          post family_invitations_path(family), params: valid_params
         end.to change(Family::Invitation, :count).by(1)
       end
 
       it 'redirects with success message' do
-        post '/family/invitations', params: valid_params
-        expect(response).to redirect_to(family_path)
-        follow_redirect!
-        expect(response.body).to include('Invitation sent successfully!')
+        post family_invitations_path(family), params: valid_params
+        expect(response).to redirect_to(family_path(family))
+        expect(flash[:notice]).to include('Invitation sent successfully!')
       end
     end
 
@@ -106,16 +105,15 @@ RSpec.describe 'Family::Invitations', type: :request do
       it 'does not create a duplicate invitation' do
         invitation # create the existing invitation
         expect do
-          post '/family/invitations', params: duplicate_params
+          post family_invitations_path(family), params: duplicate_params
         end.not_to change(Family::Invitation, :count)
       end
 
       it 'redirects with error message' do
         invitation # create the existing invitation
-        post '/family/invitations', params: duplicate_params
-        expect(response).to redirect_to(family_path)
-        follow_redirect!
-        expect(response.body).to include('Invitation already sent to this email')
+        post family_invitations_path(family), params: duplicate_params
+        expect(response).to redirect_to(family_path(family))
+        expect(flash[:alert]).to include('Invitation already sent to this email')
       end
     end
 
@@ -123,7 +121,7 @@ RSpec.describe 'Family::Invitations', type: :request do
       before { membership.update!(role: :member) }
 
       it 'redirects due to authorization failure' do
-        post '/family/invitations', params: {
+        post family_invitations_path(family), params: {
           family_invitation: { email: 'test@example.com' }
         }
         expect(response).to have_http_status(:see_other)
@@ -137,10 +135,10 @@ RSpec.describe 'Family::Invitations', type: :request do
       before { sign_in outsider }
 
       it 'redirects to families index' do
-        post '/family/invitations', params: {
+        post family_invitations_path(family), params: {
           family_invitation: { email: 'test@example.com' }
         }
-        expect(response).to redirect_to(new_family_path)
+        expect(response).to redirect_to(families_path)
       end
     end
 
@@ -148,7 +146,7 @@ RSpec.describe 'Family::Invitations', type: :request do
       before { sign_out user }
 
       it 'redirects to login' do
-        post '/family/invitations', params: {
+        post family_invitations_path(family), params: {
           family_invitation: { email: 'test@example.com' }
         }
         expect(response).to redirect_to(new_user_session_path)
@@ -156,27 +154,26 @@ RSpec.describe 'Family::Invitations', type: :request do
     end
   end
 
-  describe 'DELETE /family/invitations/:id' do
+  describe 'DELETE /families/:family_id/invitations/:id' do
     before { sign_in user }
 
     it 'cancels the invitation' do
-      delete "/family/invitations/#{invitation.token}"
+      delete family_invitation_path(family, invitation.token)
       invitation.reload
       expect(invitation.status).to eq('cancelled')
     end
 
     it 'redirects with success message' do
-      delete "/family/invitations/#{invitation.token}"
-      expect(response).to redirect_to(family_path)
-      follow_redirect!
-      expect(response.body).to include('Invitation cancelled')
+      delete family_invitation_path(family, invitation.token)
+      expect(response).to redirect_to(family_path(family))
+      expect(flash[:notice]).to include('Invitation cancelled')
     end
 
     context 'when user is not the owner' do
       before { membership.update!(role: :member) }
 
       it 'redirects due to authorization failure' do
-        delete "/family/invitations/#{invitation.token}"
+        delete family_invitation_path(family, invitation.token)
         expect(response).to have_http_status(:see_other)
         expect(flash[:alert]).to include('not authorized')
       end
@@ -188,8 +185,8 @@ RSpec.describe 'Family::Invitations', type: :request do
       before { sign_in outsider }
 
       it 'redirects to families index' do
-        delete "/family/invitations/#{invitation.token}"
-        expect(response).to redirect_to(new_family_path)
+        delete family_invitation_path(family, invitation.token)
+        expect(response).to redirect_to(families_path)
       end
     end
 
@@ -197,7 +194,7 @@ RSpec.describe 'Family::Invitations', type: :request do
       before { sign_out user }
 
       it 'redirects to login' do
-        delete "/family/invitations/#{invitation.token}"
+        delete family_invitation_path(family, invitation.token)
         expect(response).to redirect_to(new_user_session_path)
       end
     end
@@ -209,10 +206,10 @@ RSpec.describe 'Family::Invitations', type: :request do
     it 'completes full invitation acceptance workflow' do
       # 1. Owner creates invitation
       sign_in user
-      post '/family/invitations', params: {
+      post family_invitations_path(family), params: {
         family_invitation: { email: invitee.email }
       }
-      expect(response).to redirect_to(family_path)
+      expect(response).to redirect_to(family_path(family))
 
       created_invitation = Family::Invitation.last
       expect(created_invitation.email).to eq(invitee.email)
@@ -225,10 +222,10 @@ RSpec.describe 'Family::Invitations', type: :request do
       # 3. Invitee accepts invitation
       sign_in invitee
       post accept_family_invitation_path(token: created_invitation.token)
-      expect(response).to redirect_to(family_path)
+      expect(response).to redirect_to(family_path(family))
 
       # 4. Verify invitee is now in family
-      expect(invitee.reload.family).to eq(family)
+      expect(invitee.reload.families).to include(family)
       expect(created_invitation.reload.status).to eq('accepted')
     end
   end
