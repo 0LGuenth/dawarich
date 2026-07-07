@@ -1,49 +1,49 @@
-<% content_for :title, "Family Management" %>
+<% content_for :title, "Your Families" %>
 
 <div class="container mx-auto px-4 py-8">
   <div class="max-w-2xl mx-auto">
-    <div class="text-center mb-8">
-      <h1 class="text-3xl font-bold text-base-content mb-4">
-        <%= t('families.index.title', default: 'Family Management') %>
-      </h1>
-      <p class="text-base-content opacity-60">
-        <%= t('families.index.description', default: 'Create or join a family to share your location data with loved ones.') %>
-      </p>
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-3xl font-bold text-base-content">Your Families</h1>
     </div>
+
+    <% if @families.any? %>
+      <div class="space-y-3 mb-8">
+        <% @families.each do |family| %>
+          <%= link_to family_path(family),
+                class: "flex items-center justify-between border border-base-300 rounded-xl px-4 py-3 hover:bg-base-200/50 transition-colors" do %>
+            <div>
+              <div class="font-medium"><%= family.name %></div>
+              <div class="text-xs text-base-content/50">
+                <%= family.member_count %> members
+                <% if current_user.owner_of?(family) %>
+                  &middot; <span class="text-warning">Owner</span>
+                <% end %>
+              </div>
+            </div>
+            <%= icon 'chevron-right', class: 'w-4 h-4 text-base-content/30' %>
+          <% end %>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="text-base-content/60 mb-8 text-center">
+        You don't belong to any families yet. Create one below or accept an invitation.
+      </p>
+    <% end %>
 
     <div class="bg-base-200 rounded-lg p-6">
-      <h2 class="text-xl font-semibold mb-4 text-base-content">
-        <%= t('families.index.create_family', default: 'Create Your Family') %>
-      </h2>
+      <h2 class="text-xl font-semibold mb-4 text-base-content">Create a Family</h2>
 
-      <%= form_with model: Family.new, local: true, class: "space-y-4" do |form| %>
+      <%= form_with model: Family.new, url: families_path, local: true, class: "space-y-4" do |form| %>
         <div>
-          <%= form.label :name, t('families.form.name', default: 'Family Name'), class: "label label-text font-medium mb-1" %>
+          <%= form.label :name, 'Family Name', class: "label label-text font-medium mb-1" %>
           <%= form.text_field :name,
-                placeholder: t('families.form.name_placeholder', default: 'Enter your family name'),
+                placeholder: 'Enter your family name',
                 class: "input input-bordered w-full" %>
         </div>
-
         <div class="flex justify-end">
-          <%= form.submit t('families.form.create', default: 'Create Family'),
-                class: "btn btn-primary" %>
+          <%= form.submit 'Create Family', class: "btn btn-primary" %>
         </div>
       <% end %>
-    </div>
-
-    <div class="mt-8 text-center">
-      <h3 class="text-lg font-medium text-base-content mb-4">
-        <%= t('families.index.have_invitation', default: 'Have an invitation?') %>
-      </h3>
-      <p class="text-base-content opacity-60 mb-4">
-        <%= t('families.index.invitation_instructions', default: 'If someone has invited you to join their family, you should have received an email with an invitation link.') %>
-      </p>
-      <div class="text-sm text-base-content opacity-50">
-        <%= t('families.index.invitation_help', default: 'Check your email for an invitation link that looks like: ') %>
-        <code class="bg-base-300 text-base-content px-2 py-1 rounded text-xs">
-          <%= "#{request.base_url}/invitations/..." %>
-        </code>
-      </div>
     </div>
   </div>
 </div>

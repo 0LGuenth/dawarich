@@ -245,4 +245,32 @@ RSpec.describe 'Family', type: :request do
       expect(response).to redirect_to(new_user_session_path)
     end
   end
+
+  describe 'GET /families (index)' do
+    it 'lists all families the user belongs to' do
+      user = create(:user)
+      fam_a = create(:family, name: 'Ski Group')
+      fam_b = create(:family, name: 'Poker Group')
+      create(:family_membership, user: user, family: fam_a)
+      create(:family_membership, user: user, family: fam_b)
+      sign_in user
+
+      get families_path
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include('Ski Group').and include('Poker Group')
+    end
+  end
+
+  describe 'GET /families/:id (show)' do
+    it 'returns 404 for a family the user is not in' do
+      user = create(:user)
+      other = create(:family)
+      sign_in user
+
+      get family_path(other)
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end

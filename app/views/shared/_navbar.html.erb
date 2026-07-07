@@ -12,7 +12,7 @@
         <% if user_signed_in? && DawarichSettings.family_feature_enabled? %>
           <li>
             <% if current_user.in_family? %>
-              <%= link_to family_path, class: "#{active_class?(family_path)} flex items-center space-x-2" do %>
+              <%= link_to families_path, class: "#{active_class?(families_path)} flex items-center space-x-2" do %>
                 <span>Family</span>
                 <%= render 'families/navbar_indicator', user: current_user %>
               <% end %>
@@ -73,8 +73,8 @@
       <% if user_signed_in? && DawarichSettings.family_feature_enabled? %>
         <li>
           <% if current_user.in_family? %>
-            <div class="<%= active_class?(family_path) %>">
-              <%= link_to family_path, class: "mx-1 flex items-center space-x-2" do %>
+            <div class="<%= active_class?(families_path) %>">
+              <%= link_to families_path, class: "mx-1 flex items-center space-x-2" do %>
                 <span>Family<sup>α</sup></span>
                 <%= render 'families/navbar_indicator', user: current_user %>
               <% end %>

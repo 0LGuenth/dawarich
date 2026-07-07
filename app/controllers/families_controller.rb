@@ -5,24 +5,28 @@ class FamiliesController < ApplicationController
   before_action :ensure_family_feature_enabled!
   before_action :set_family, only: %i[show edit update destroy]
 
+  def index
+    @families = current_user.families.includes(:family_memberships)
+  end
+
   def show
     authorize @family
 
-    @members = @family.members.includes(:family_membership).order(:email)
+    @members = @family.members.order(:email)
     @pending_invitations = @family.active_invitations.order(:created_at)
 
     @member_count = @family.member_count
     @can_invite = @family.can_add_members?
     @pending_requests = current_user.sent_location_requests.pending
                                     .where('expires_at > ?', Time.current)
+                                    .where(family_id: @family.id)
                                     .index_by(&:target_user_id)
 
-    @member_locations = @members.filter_map(&:latest_location_for_family)
+    @memberships_by_user = @family.family_memberships.index_by(&:user_id)
+    @member_locations = @memberships_by_user.values.filter_map(&:latest_location)
   end
 
   def new
-    redirect_to family_path and return if current_user.in_family?
-
     @family = Family.new
     authorize @family
   end
@@ -37,7 +41,7 @@ class FamiliesController < ApplicationController
     )
 
     if service.call
-      redirect_to family_path, notice: 'Family created successfully!'
+      redirect_to family_path(service.family), notice: 'Family created successfully!'
     else
       @family = Family.new(family_params)
 
@@ -62,7 +66,7 @@ class FamiliesController < ApplicationController
     authorize @family
 
     if @family.update(family_params)
-      redirect_to family_path, notice: 'Family updated successfully!'
+      redirect_to family_path(@family), notice: 'Family updated successfully!'
     else
       render :edit, status: :unprocessable_content
     end
@@ -72,18 +76,17 @@ class FamiliesController < ApplicationController
     authorize @family
 
     if @family.members.count > 1
-      redirect_to family_path, alert: 'Cannot delete family with members. Remove all members first.'
+      redirect_to family_path(@family), alert: 'Cannot delete family with members. Remove all members first.'
     else
       @family.destroy
-      redirect_to new_family_path, notice: 'Family deleted successfully!'
+      redirect_to families_path, notice: 'Family deleted successfully!'
     end
   end
 
   private
 
   def set_family
-    @family = current_user.family
-    redirect_to new_family_path, alert: 'You are not in a family' unless @family
+    @family = current_user.families.find(params[:id])
   end
 
   def family_params
