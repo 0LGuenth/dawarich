@@ -5,11 +5,12 @@ class Family::LocationSharingController < ApplicationController
 
   before_action :authenticate_user!
   before_action :ensure_family_feature_enabled!
-  before_action :ensure_user_in_family!
+  before_action :set_family
+  before_action :set_membership
 
   def update
     result = Families::UpdateLocationSharing.new(
-      user: current_user,
+      membership: @membership,
       enabled: params[:enabled],
       duration: params[:duration],
       share_history: params[:share_history],
@@ -18,12 +19,12 @@ class Family::LocationSharingController < ApplicationController
 
     respond_to do |format|
       format.turbo_stream do
-        current_user.reload
+        @membership.reload
         streams = [
           turbo_stream.replace(
             "location-sharing-#{current_user.id}",
             partial: 'families/location_sharing_toggle',
-            locals: { member: current_user }
+            locals: { member: current_user, membership: @membership, family: @family }
           ),
           turbo_stream.replace(
             'family-navbar-indicator',
@@ -40,14 +41,23 @@ class Family::LocationSharingController < ApplicationController
 
   private
 
-  def ensure_user_in_family!
-    return if current_user.in_family?
+  def set_family
+    @family = current_user.families.find(params[:family_id])
+  rescue ActiveRecord::RecordNotFound
+    render_not_in_family
+  end
 
+  def set_membership
+    @membership = current_user.membership_for(@family) if @family
+    render_not_in_family unless @membership
+  end
+
+  def render_not_in_family
     respond_to do |format|
       format.turbo_stream do
-        render turbo_stream: stream_flash(:error, 'User is not part of a family'), status: :not_found
+        render turbo_stream: stream_flash(:error, 'User is not part of this family'), status: :not_found
       end
-      format.json { render json: { error: 'User is not part of a family' }, status: :not_found }
+      format.json { render json: { error: 'User is not part of this family' }, status: :not_found }
     end
   end
 end

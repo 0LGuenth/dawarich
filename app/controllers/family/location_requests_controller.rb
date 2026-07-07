@@ -3,24 +3,24 @@
 class Family::LocationRequestsController < ApplicationController
   before_action :authenticate_user!
   before_action :ensure_family_feature_enabled!
-  before_action :ensure_user_in_family!
+  before_action :set_family
   before_action :set_request, only: %i[show accept decline]
   before_action :authorize_target_user!, only: %i[show accept decline]
 
   def create
-    target = current_user.family&.members&.find_by(id: params[:target_user_id])
+    target = @family.members.find_by(id: params[:target_user_id])
 
     unless target
-      redirect_to family_path, alert: 'User not found in your family'
+      redirect_to family_path(@family), alert: 'User not found in your family'
       return
     end
 
-    result = Families::CreateLocationRequest.new(requester: current_user, target_user: target).call
+    result = Families::CreateLocationRequest.new(requester: current_user, target_user: target, family: @family).call
 
     if result.success?
-      redirect_to family_path, notice: 'Location request sent successfully'
+      redirect_to family_path(@family), notice: 'Location request sent successfully'
     else
-      redirect_to family_path, alert: result.payload[:message]
+      redirect_to family_path(@family), alert: result.payload[:message]
     end
   end
 
@@ -30,46 +30,46 @@ class Family::LocationRequestsController < ApplicationController
 
   def accept
     unless actionable?
-      redirect_to family_path, alert: 'This request has expired or already been responded to'
+      redirect_to family_path(@family), alert: 'This request has expired or already been responded to'
       return
     end
 
     duration = params[:duration] || @request.suggested_duration
     ActiveRecord::Base.transaction do
-      current_user.update_family_location_sharing!(true, duration: duration)
+      current_user.membership_for(@family).update_sharing!(true, duration: duration)
       @request.update!(status: :accepted, responded_at: Time.current)
     end
 
-    redirect_to family_path, notice: 'Location sharing enabled'
+    redirect_to family_path(@family), notice: 'Location sharing enabled'
   end
 
   def decline
     unless actionable?
-      redirect_to family_path, alert: 'This request has expired or already been responded to'
+      redirect_to family_path(@family), alert: 'This request has expired or already been responded to'
       return
     end
 
     @request.update!(status: :declined, responded_at: Time.current)
 
-    redirect_to family_path, notice: 'Location request declined'
+    redirect_to family_path(@family), notice: 'Location request declined'
   end
 
   private
 
+  def set_family
+    @family = current_user.families.find(params[:family_id])
+  rescue ActiveRecord::RecordNotFound
+    redirect_to families_path, alert: 'Family not found'
+  end
+
   def set_request
-    @request = Family::LocationRequest.where(family: current_user.family).find(params[:id])
+    @request = @family.location_requests.find(params[:id])
   end
 
   def authorize_target_user!
     return if @request.target_user == current_user
 
-    redirect_to family_path, alert: 'You are not authorized to view this request'
-  end
-
-  def ensure_user_in_family!
-    return if current_user&.in_family?
-
-    redirect_to root_path, alert: 'You must be part of a family'
+    redirect_to family_path(@family), alert: 'You are not authorized to view this request'
   end
 
   def actionable?
