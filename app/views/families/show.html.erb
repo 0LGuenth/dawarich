@@ -5,7 +5,7 @@
   <%= render layout: 'shared/page_header', locals: { title: @family.name } do %>
     <div class="flex items-center gap-2">
       <% if policy(@family).update? %>
-        <%= link_to edit_family_path, class: "btn btn-outline btn-sm" do %>
+        <%= link_to edit_family_path(@family), class: "btn btn-outline btn-sm" do %>
           <%= icon 'square-pen', class: 'w-4 h-4' %> Edit
         <% end %>
       <% end %>
@@ -52,7 +52,7 @@
           <h3 class="text-xs font-medium uppercase tracking-wider text-base-content/50">Your Sharing</h3>
         </div>
         <div class="p-4">
-          <%= render 'families/location_sharing_toggle', member: current_user %>
+          <%= render 'families/location_sharing_toggle', member: current_user, membership: @memberships_by_user[current_user.id], family: @family %>
         </div>
       </div>
 
@@ -84,7 +84,7 @@
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2">
                     <span class="text-sm font-medium truncate"><%= member.email %></span>
-                    <% if member.family_membership.role == 'owner' %>
+                    <% if @memberships_by_user[member.id]&.owner? %>
                       <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-warning/10 text-warning">Owner</span>
                     <% end %>
                     <% if member == current_user %>
@@ -92,10 +92,10 @@
                     <% end %>
                   </div>
                   <div class="flex items-center gap-2 mt-0.5">
-                    <% if member.family_sharing_enabled? %>
+                    <% if @memberships_by_user[member.id]&.sharing_active? %>
                       <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
                       <span class="text-xs text-success">
-                        Sharing <%= member.family_sharing_duration == 'permanent' ? 'always' : "for #{member.family_sharing_duration}" %>
+                        Sharing <%= @memberships_by_user[member.id].sharing_duration_label == 'permanent' ? 'always' : "for #{@memberships_by_user[member.id].sharing_duration_label}" %>
                       </span>
                       <% if location %>
                         <span class="text-xs text-base-content/40">
@@ -111,7 +111,7 @@
                           <span class="text-xs text-info">Requested</span>
                         <% else %>
                           <%= button_to "Request",
-                              family_location_requests_path(target_user_id: member.id),
+                              family_location_requests_path(@family, target_user_id: member.id),
                               method: :post,
                               class: "btn btn-outline btn-xs btn-info ml-auto" %>
                         <% end %>
@@ -119,8 +119,8 @@
                     <% end %>
                   </div>
                 </div>
-                <% if current_user.family_owner? && member != current_user && !member.family_membership.owner? %>
-                  <%= link_to family_member_path(member.family_membership),
+                <% if current_user.owner_of?(@family) && member != current_user && !@memberships_by_user[member.id]&.owner? %>
+                  <%= link_to family_member_path(@family, @memberships_by_user[member.id]),
                         method: :delete,
                         data: {
                           turbo_confirm: "Remove #{member.email} from the family?",
@@ -167,7 +167,7 @@
                       <%= icon 'copy', class: 'w-3.5 h-3.5' %>
                     </button>
                     <% if policy(@family).manage_invitations? %>
-                      <%= button_to family_invitation_path(invitation.token),
+                      <%= button_to family_invitation_path(@family, invitation.token),
                             method: :delete,
                             form: { data: { turbo_confirm: 'Cancel this invitation?', turbo_method: :delete } },
                             class: "btn btn-ghost btn-xs text-error hover:bg-error/10" do %>
@@ -206,8 +206,8 @@
 
       <%# Danger zone %>
       <div class="flex gap-2 justify-end">
-        <% if !current_user.family_owner? && current_user.family_membership %>
-          <%= link_to family_member_path(current_user.family_membership),
+        <% if !current_user.owner_of?(@family) && @memberships_by_user[current_user.id] %>
+          <%= link_to family_member_path(@family, @memberships_by_user[current_user.id]),
                 method: :delete,
                 data: { turbo_confirm: 'Are you sure you want to leave this family?', turbo_method: :delete },
                 class: "btn btn-ghost btn-xs text-warning" do %>
@@ -215,7 +215,7 @@
           <% end %>
         <% end %>
         <% if policy(@family).destroy? %>
-          <%= link_to family_path,
+          <%= link_to family_path(@family),
                 method: :delete,
                 data: { turbo_confirm: 'Delete this family? This cannot be undone.', turbo_method: :delete },
                 class: "btn btn-ghost btn-xs text-error" do %>
