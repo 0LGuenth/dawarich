@@ -481,6 +481,8 @@ export default class extends Controller {
   }
 
   // Method to manually update family member locations (for API calls)
+  // Consumes the deduped flat `locations` array from the API (one entry per
+  // user_id across all families).
   updateFamilyLocations(locations) {
     // Convert array to object keyed by user_id
     if (Array.isArray(locations)) {

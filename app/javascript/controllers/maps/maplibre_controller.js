@@ -1421,22 +1421,23 @@ export default class extends Controller {
 
       const data = await response.json()
       const locations = data.locations || []
+      const groups = data.groups || []
 
-      // Update family layer with locations
+      // Update family layer with the deduped flat locations (one pin per user)
       const familyLayer = this.layerManager.getLayer("family")
       if (familyLayer) {
         familyLayer.loadMembers(locations)
       }
 
-      // Update family count in badge
+      // Update family count in badge (deduped members)
       this._familyMemberCount = locations.length
       this.updateLoadingCounts({
         counts: { family: locations.length },
         isComplete: true,
       })
 
-      // Render family members list
-      this.renderFamilyMembersList(locations)
+      // Render family members grouped by family
+      this.renderFamilyGroups(groups)
 
       Toast.success(`Loaded ${locations.length} family member(s)`)
 
@@ -1517,71 +1518,87 @@ export default class extends Controller {
     }
   }
 
-  renderFamilyMembersList(locations) {
+  renderFamilyGroups(groups) {
     if (!this.hasFamilyMembersContainerTarget) return
 
     const container = this.familyMembersContainerTarget
 
-    if (locations.length === 0) {
+    if (!groups || groups.length === 0) {
       container.innerHTML =
         '<p class="text-xs text-base-content/60">No family members sharing location</p>'
       return
     }
 
     container.replaceChildren(
-      ...locations.map((location) => {
-        const emailInitial = location.email?.charAt(0)?.toUpperCase() || "?"
-        const color = this.getFamilyMemberColor(location.user_id)
-        const lastSeen = new Date(location.updated_at).toLocaleString("en-US", {
-          timeZone: this.timezoneValue || "UTC",
-          month: "short",
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-        })
+      ...groups.map((group) => {
+        const section = document.createElement("div")
+        section.className = "mb-3"
 
-        const row = document.createElement("div")
-        row.className =
-          "flex items-center gap-2 p-2 hover:bg-base-200 rounded-lg cursor-pointer transition-colors"
-        row.dataset.action = "click->maps--maplibre#centerOnFamilyMember"
-        row.dataset.memberId = location.user_id
+        const header = document.createElement("div")
+        header.className =
+          "text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-1"
+        header.textContent = group.family_name
+        section.appendChild(header)
 
-        const avatar = document.createElement("div")
-        Object.assign(avatar.style, {
-          backgroundColor: color,
-          color: "white",
-          borderRadius: "50%",
-          width: "24px",
-          height: "24px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "12px",
-          fontWeight: "bold",
-          flexShrink: "0",
-        })
-        avatar.textContent = emailInitial
-
-        const info = document.createElement("div")
-        info.className = "flex-1 min-w-0"
-
-        const emailDiv = document.createElement("div")
-        emailDiv.className = "text-sm font-medium truncate"
-        emailDiv.textContent = location.email || "Unknown"
-
-        const timeDiv = document.createElement("div")
-        timeDiv.className = "text-xs text-base-content/60"
-        timeDiv.textContent = lastSeen
-
-        const statusDiv = document.createElement("div")
-        statusDiv.className = "text-xs text-info/70"
-        statusDiv.dataset.memberInfo = location.user_id
-
-        info.append(emailDiv, timeDiv, statusDiv)
-        row.append(avatar, info)
-        return row
+        for (const location of group.members) {
+          section.appendChild(this.buildFamilyMemberRow(location))
+        }
+        return section
       }),
     )
+  }
+
+  buildFamilyMemberRow(location) {
+    const emailInitial = location.email?.charAt(0)?.toUpperCase() || "?"
+    const color = this.getFamilyMemberColor(location.user_id)
+    const lastSeen = new Date(location.updated_at).toLocaleString("en-US", {
+      timeZone: this.timezoneValue || "UTC",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    })
+
+    const row = document.createElement("div")
+    row.className =
+      "flex items-center gap-2 p-2 hover:bg-base-200 rounded-lg cursor-pointer transition-colors"
+    row.dataset.action = "click->maps--maplibre#centerOnFamilyMember"
+    row.dataset.memberId = location.user_id
+
+    const avatar = document.createElement("div")
+    Object.assign(avatar.style, {
+      backgroundColor: color,
+      color: "white",
+      borderRadius: "50%",
+      width: "24px",
+      height: "24px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: "12px",
+      fontWeight: "bold",
+      flexShrink: "0",
+    })
+    avatar.textContent = emailInitial
+
+    const info = document.createElement("div")
+    info.className = "flex-1 min-w-0"
+
+    const emailDiv = document.createElement("div")
+    emailDiv.className = "text-sm font-medium truncate"
+    emailDiv.textContent = location.email || "Unknown"
+
+    const timeDiv = document.createElement("div")
+    timeDiv.className = "text-xs text-base-content/60"
+    timeDiv.textContent = lastSeen
+
+    const statusDiv = document.createElement("div")
+    statusDiv.className = "text-xs text-info/70"
+    statusDiv.dataset.memberInfo = location.user_id
+
+    info.append(emailDiv, timeDiv, statusDiv)
+    row.append(avatar, info)
+    return row
   }
 
   getFamilyMemberColor(userId) {
