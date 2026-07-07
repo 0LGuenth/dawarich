@@ -5,12 +5,13 @@ class Api::V1::Families::LocationsController < ApiController
   before_action :ensure_user_in_family!
 
   def index
-    family_locations = Families::Locations.new(current_api_user).call
+    groups = Families::Locations.new(current_api_user).call
 
     render json: {
-      locations: family_locations,
+      locations: dedupe_members(groups),
+      groups: groups,
       updated_at: Time.current.iso8601,
-      sharing_enabled: current_api_user.family_sharing_enabled?
+      sharing_enabled: current_api_user.family_memberships.any?(&:sharing_active?)
     }
   end
 
@@ -27,12 +28,12 @@ class Api::V1::Families::LocationsController < ApiController
 
     return render json: { error: 'Invalid date format' }, status: :bad_request if parsed_start.nil? || parsed_end.nil?
 
-    members = Families::Locations.new(current_api_user).history(
+    grouped = Families::Locations.new(current_api_user).history(
       start_at: parsed_start,
       end_at: parsed_end
     )
 
-    render json: { members: members }
+    render json: { members: dedupe_history(grouped) }
   rescue ArgumentError
     render json: { error: 'Invalid date format' }, status: :bad_request
   end
@@ -43,5 +44,22 @@ class Api::V1::Families::LocationsController < ApiController
     return if current_api_user&.in_family?
 
     render json: { error: 'User is not part of a family' }, status: :not_found
+  end
+
+  # One entry per user_id across all groups, keeping the most recent point.
+  def dedupe_members(groups)
+    groups
+      .flat_map { |group| group[:members] }
+      .group_by { |member| member[:user_id] }
+      .map { |_user_id, entries| entries.max_by { |m| m[:timestamp].to_i } }
+  end
+
+  # Flatten grouped history to one entry per user_id, keeping the entry with the
+  # most points (a member sharing history in multiple families appears once).
+  def dedupe_history(groups)
+    groups
+      .flat_map { |group| group[:members] }
+      .group_by { |member| member[:user_id] }
+      .map { |_user_id, entries| entries.max_by { |m| m[:points].size } }
   end
 end
