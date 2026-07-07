@@ -68,7 +68,7 @@ class Family::Membership < ApplicationRecord
   def latest_location
     return nil unless sharing_active?
 
-    latest_point = user.points.select(:lonlat, :timestamp).order(timestamp: :desc).limit(1).first
+    latest_point = user.scoped_points.select(:lonlat, :timestamp).order(timestamp: :desc).limit(1).first
     return nil unless latest_point
 
     {

@@ -104,13 +104,13 @@ class Users::RegistrationsController < Devise::RegistrationsController
   end
 
   def after_sign_up_path_for(resource)
-    return family_path if @invitation&.family
+    return family_path(@invitation.family) if @invitation&.family
 
     super(resource)
   end
 
   def after_inactive_sign_up_path_for(resource)
-    return family_path if @invitation&.family
+    return family_path(@invitation.family) if @invitation&.family
 
     super(resource)
   end

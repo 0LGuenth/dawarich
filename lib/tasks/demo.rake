@@ -362,7 +362,8 @@ namespace :demo do
       )
 
       # Enable location sharing for this member (permanent)
-      member.update_family_location_sharing!(true, duration: 'permanent')
+      membership = Family::Membership.find_by(family: family, user: member)
+      membership.update_sharing!(true, duration: 'permanent')
 
       # Create some points for this family member near owner's locations
       if sample_points.any?
