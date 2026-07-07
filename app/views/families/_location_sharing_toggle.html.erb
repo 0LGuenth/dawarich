@@ -62,11 +62,11 @@
           <% end %>
         </div>
 
-        <%# Row 2: Location history (only visible when history sharing is enabled) %>
+        <%# Row 2: Location history (only visible when live sharing is enabled) %>
         <template data-location-sharing-toggle-target="historyRow">
         </template>
 
-        <div class="<%= 'hidden' unless membership.share_history? %> contents"
+        <div class="<%= 'hidden' unless membership.sharing_active? %> contents"
              data-location-sharing-toggle-target="historyContainer">
 
           <span class="text-sm text-base-content/60 text-right whitespace-nowrap">Location history:</span>
