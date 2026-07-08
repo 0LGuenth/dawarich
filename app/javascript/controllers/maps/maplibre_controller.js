@@ -1465,21 +1465,17 @@ export default class extends Controller {
       const data = await response.json()
       const members = data.members || []
 
-      const familyLayer = this.layerManager.getLayer("family")
-      if (familyLayer) {
-        if (members.length > 0) {
-          // Assign colors consistent with member markers
-          for (const member of members) {
-            member.color = this.getFamilyMemberColor(member.user_id)
-          }
-          familyLayer.loadMemberHistory(members)
-        } else {
-          familyLayer.clearHistory()
-        }
+      // Assign colors consistent with member markers
+      for (const member of members) {
+        member.color = this.getFamilyMemberColor(member.user_id)
       }
 
-      // Update member info lines with sharing_since data
+      // Store first, then draw through applyFamilyVisibility so the initial
+      // render honors any families already toggled off
       this._familyHistoryData = members
+      this.applyFamilyVisibility()
+
+      // Update member info lines with sharing_since data
       this.updateFamilyInfoLines(members)
     } catch (error) {
       console.error("[Maps V2] Failed to load family history:", error)
@@ -1593,6 +1589,17 @@ export default class extends Controller {
       counts: { family: visible.length },
       isComplete: true,
     })
+
+    // Keep history polylines in sync with the pins: a member hidden in all
+    // enabled families must not leave an orphaned route line behind.
+    const visibleHistory = (this._familyHistoryData || []).filter((member) =>
+      visibleUserIds.has(member.user_id),
+    )
+    if (visibleHistory.length > 0) {
+      familyLayer.loadMemberHistory(visibleHistory)
+    } else {
+      familyLayer.clearHistory()
+    }
   }
 
   buildFamilyMemberRow(location) {
