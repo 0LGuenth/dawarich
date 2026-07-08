@@ -90,6 +90,20 @@ RSpec.describe Families::AcceptInvitation do
       end
     end
 
+    context 'when the joining user is already at their family limit' do
+      before do
+        create_list(:family_membership, UserFamily::MAX_FAMILIES, user: invitee)
+      end
+
+      it 'returns false' do
+        expect(service.call).to be false
+      end
+
+      it 'does not create membership' do
+        expect { service.call }.not_to change(Family::Membership, :count)
+      end
+    end
+
     context 'when family is at max capacity' do
       before do
         allow(DawarichSettings).to receive(:self_hosted?).and_return(false)

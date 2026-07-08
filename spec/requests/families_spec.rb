@@ -95,6 +95,27 @@ RSpec.describe 'Family', type: :request do
         expect(response).to have_http_status(:unprocessable_content)
       end
     end
+
+    context 'when the user is already at the family cap' do
+      before do
+        stub_const('UserFamily::MAX_FAMILIES', 1)
+        create(:family_membership, :owner, user: user_without_family, family: create(:family))
+      end
+
+      it 'does not create a family' do
+        expect do
+          post families_path, params: { family: { name: 'Over Limit' } }
+        end.not_to change(Family, :count)
+      end
+
+      it 'shows the family-limit message rather than an authorization error' do
+        post families_path, params: { family: { name: 'Over Limit' } }
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(flash[:alert]).to match(/maximum number of families/i)
+        expect(flash[:alert]).not_to include('not authorized')
+      end
+    end
   end
 
   describe 'GET /families/:id/edit' do

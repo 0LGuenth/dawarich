@@ -34,6 +34,7 @@ module Families
       return false unless validate_invitation
       return false unless validate_email_match
       return false unless validate_family_capacity
+      return false unless validate_user_family_limit
 
       true
     end
@@ -58,6 +59,14 @@ module Families
       return true unless invitation.family.full?
 
       @error_message = 'This family has reached the maximum number of members.'
+
+      false
+    end
+
+    def validate_user_family_limit
+      return true if user.can_create_more_families?
+
+      @error_message = 'You have reached the maximum number of families you can join.'
 
       false
     end

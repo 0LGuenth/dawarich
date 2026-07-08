@@ -10,7 +10,8 @@ class FamilyPolicy < ApplicationPolicy
   end
 
   def create?
-    return false unless user.can_create_more_families?
+    # NOTE: the per-user family cap is is enforced in Families::Create where it
+    # results in a proper error message instead of "not authorized"
     return true if DawarichSettings.self_hosted?
 
     # Add cloud subscription checks here when implemented
