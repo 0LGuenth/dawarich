@@ -5,7 +5,7 @@ class FamilyMailer < ApplicationMailer
     @invitation = invitation
     @family = invitation.family
     @invited_by = invitation.invited_by
-    @accept_url = family_invitation_url(@invitation.token)
+    @accept_url = public_invitation_url(@invitation.token)
 
     mail(
       to: @invitation.email,
