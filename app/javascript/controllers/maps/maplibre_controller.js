@@ -1518,14 +1518,17 @@ export default class extends Controller {
       return
     }
 
-    // Lazily initialize the enabled-family set; default new families to visible
-    if (!this._enabledFamilies) this._enabledFamilies = new Set()
+    // Per-family visibility is persisted as the set of family ids
+    //  (see `_loadDisabledFamilies`).
+    if (!this._disabledFamilies) {
+      this._disabledFamilies = this._loadDisabledFamilies()
+    }
+    this._enabledFamilies = new Set()
     for (const group of groups) {
-      if (!this._seenFamilies?.has(group.family_id)) {
+      if (!this._disabledFamilies.has(Number(group.family_id))) {
         this._enabledFamilies.add(group.family_id)
       }
     }
-    this._seenFamilies = new Set(groups.map((g) => g.family_id))
     this._lastGroups = groups
 
     container.replaceChildren(
@@ -1561,12 +1564,60 @@ export default class extends Controller {
 
   toggleFamilyVisibility(event) {
     const familyId = Number(event.target.dataset.familyId)
+    if (!this._disabledFamilies) {
+      this._disabledFamilies = this._loadDisabledFamilies()
+    }
     if (event.target.checked) {
       this._enabledFamilies.add(familyId)
+      this._disabledFamilies.delete(familyId)
     } else {
       this._enabledFamilies.delete(familyId)
+      this._disabledFamilies.add(familyId)
     }
+    this._saveDisabledFamilies()
     this.applyFamilyVisibility()
+  }
+
+  /**
+   * Per-family visibility persistence. The main "Family Members" layer toggle
+   * is a real user setting saved to the backend (familyEnabled). The per-family
+   * checkboxes are a lighter-weight UI preference: the backend settings
+   * endpoint has a fixed allowlist with no field for them, and SettingsManager
+   * wipes its cache on every reconnect, so both routes would lose the state on
+   * date navigation. localStorage is client-only but survives Turbo reconnects
+   * and hard refreshes, which is exactly the durability the main toggle has.
+   *
+   * We persist the set of *disabled* (hidden) family ids so that families the
+   * user never interacted with — including ones that appear later — default to
+   * visible.
+   * @private
+   */
+  get _disabledFamiliesStorageKey() {
+    return "maps_v2_disabled_families"
+  }
+
+  _loadDisabledFamilies() {
+    try {
+      const raw = window.localStorage?.getItem(this._disabledFamiliesStorageKey)
+      if (!raw) return new Set()
+      const ids = JSON.parse(raw)
+      if (!Array.isArray(ids)) return new Set()
+      return new Set(ids.map(Number).filter((id) => !Number.isNaN(id)))
+    } catch {
+      return new Set()
+    }
+  }
+
+  _saveDisabledFamilies() {
+    try {
+      window.localStorage?.setItem(
+        this._disabledFamiliesStorageKey,
+        JSON.stringify([...this._disabledFamilies]),
+      )
+    } catch {
+      // localStorage unavailable (private mode / quota) — visibility stays
+      // in-memory for this session, matching the pre-fix behavior.
+    }
   }
 
   /**
