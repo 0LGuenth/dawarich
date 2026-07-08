@@ -232,6 +232,16 @@ export default class extends Controller {
     const mapsController = this.mapsV2Controller
     if (!mapsController) return
 
+    // Skip the pin/history update if the member belongs to only to families
+    // that were toggled off
+    const userId = member.user_id ?? member.id
+    if (
+      mapsController.isFamilyMemberVisible &&
+      !mapsController.isFamilyMemberVisible(userId)
+    ) {
+      return
+    }
+
     const familyLayer = mapsController.layerManager?.getLayer("family")
     if (familyLayer) {
       familyLayer.updateMember(member)

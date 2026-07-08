@@ -1569,16 +1569,35 @@ export default class extends Controller {
     this.applyFamilyVisibility()
   }
 
-  applyFamilyVisibility() {
-    const familyLayer = this.layerManager.getLayer("family")
-    if (!familyLayer || !this._lastGroups) return
-
-    // A user_id is visible if it appears in ANY enabled family group.
+  /**
+   * Set of user_ids visible under the current per-family toggles: a user is
+   * visible if they appear in at least one enabled family group.
+   */
+  _visibleFamilyUserIds() {
     const visibleUserIds = new Set()
+    if (!this._lastGroups || !this._enabledFamilies) return visibleUserIds
     for (const group of this._lastGroups) {
       if (!this._enabledFamilies.has(group.family_id)) continue
       for (const member of group.members) visibleUserIds.add(member.user_id)
     }
+    return visibleUserIds
+  }
+
+  /**
+   * Whether a family member should currently be rendered. True before any
+   * groups load (no toggle state to honor yet).
+   */
+  isFamilyMemberVisible(userId) {
+    if (!this._lastGroups || !this._enabledFamilies) return true
+    return this._visibleFamilyUserIds().has(userId)
+  }
+
+  applyFamilyVisibility() {
+    const familyLayer = this.layerManager.getLayer("family")
+    if (!familyLayer || !this._lastGroups) return
+
+    // A user_id is visible if it appears in ANY enabled family group
+    const visibleUserIds = this._visibleFamilyUserIds()
 
     const visible = (this._allLocations || []).filter((loc) =>
       visibleUserIds.has(loc.user_id),
