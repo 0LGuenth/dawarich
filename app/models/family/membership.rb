@@ -10,6 +10,11 @@ class Family::Membership < ApplicationRecord
   validates :user_id, uniqueness: { scope: :family_id, message: 'is already a member of this family' }
   validates :role, presence: true
 
+  # Enforce both caps at the model level so direct creates
+  # (e.g. console) can't bypass the service-only checks.
+  validate :within_user_family_limit, on: :create
+  validate :within_family_member_limit, on: :create
+
   enum :role, { owner: 0, member: 1 }
 
   VALID_HISTORY_WINDOWS = %w[24h 7d 30d all].freeze
@@ -82,6 +87,21 @@ class Family::Membership < ApplicationRecord
   end
 
   private
+
+  # MAX_FAMILIES applies to all instances including self-hosted
+  def within_user_family_limit
+    return if user.nil? || user.family_memberships.count < UserFamily::MAX_FAMILIES
+
+    errors.add(:base, "You have reached the maximum number of families (#{UserFamily::MAX_FAMILIES})")
+  end
+
+  # MAX_MEMBERS bypasses self-hosted (mirrors Family#full?, counting members not pending invites).
+  def within_family_member_limit
+    return if DawarichSettings.self_hosted? || family.nil?
+    return if family.family_memberships.count < Family::MAX_MEMBERS
+
+    errors.add(:base, 'This family has reached the maximum number of members.')
+  end
 
   def apply_duration(duration)
     self.sharing_duration = duration

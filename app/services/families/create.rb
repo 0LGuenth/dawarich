@@ -74,12 +74,11 @@ module Families
       @family = Family.create!(name: name, creator: user)
     end
 
+    # Lock the user row so concurrent creates can't both pass the MAX_FAMILIES check
     def create_owner_membership
-      Family::Membership.create!(
-        family: family,
-        user: user,
-        role: :owner
-      )
+      user.with_lock do
+        Family::Membership.create!(family: family, user: user, role: :owner)
+      end
     end
 
     def send_notification

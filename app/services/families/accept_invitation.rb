@@ -71,12 +71,13 @@ module Families
       false
     end
 
+    # Lock family then user so concurrent accepts can't both pass the caps
     def create_membership
-      Family::Membership.create!(
-        family: invitation.family,
-        user: user,
-        role: :member
-      )
+      invitation.family.with_lock do
+        user.with_lock do
+          Family::Membership.create!(family: invitation.family, user: user, role: :member)
+        end
+      end
     end
 
     def update_invitation

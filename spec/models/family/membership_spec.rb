@@ -56,6 +56,74 @@ RSpec.describe Family::Membership, type: :model do
     end
   end
 
+  describe 'cap enforcement at the model level (defense-in-depth)' do
+    describe 'per-user MAX_FAMILIES cap' do
+      let(:user) { create(:user) }
+
+      it 'blocks a direct create once the user is at MAX_FAMILIES' do
+        stub_const('UserFamily::MAX_FAMILIES', 2)
+        create_list(:family_membership, 2, user: user)
+
+        over_limit = build(:family_membership, user: user, family: create(:family))
+
+        expect(over_limit).not_to be_valid
+        expect(over_limit.errors[:base].join).to match(/maximum number of families/i)
+      end
+
+      it 'allows a create below the cap' do
+        stub_const('UserFamily::MAX_FAMILIES', 2)
+        create(:family_membership, user: user)
+
+        expect(build(:family_membership, user: user, family: create(:family))).to be_valid
+      end
+
+      it 'enforces the cap even in self-hosted mode' do
+        allow(DawarichSettings).to receive(:self_hosted?).and_return(true)
+        stub_const('UserFamily::MAX_FAMILIES', 1)
+        create(:family_membership, user: user)
+
+        expect(build(:family_membership, user: user, family: create(:family))).not_to be_valid
+      end
+    end
+
+    describe 'per-family MAX_MEMBERS cap' do
+      let(:family) { create(:family) }
+
+      context 'when not self-hosted' do
+        before { allow(DawarichSettings).to receive(:self_hosted?).and_return(false) }
+
+        it 'blocks a direct create once the family is at MAX_MEMBERS' do
+          create_list(:family_membership, Family::MAX_MEMBERS, family: family, role: :member)
+
+          over_limit = build(:family_membership, family: family, user: create(:user))
+
+          expect(over_limit).not_to be_valid
+          expect(over_limit.errors[:base].join).to match(/maximum number of members/i)
+        end
+
+        it 'allows a create below the cap' do
+          create_list(:family_membership, Family::MAX_MEMBERS - 1, family: family, role: :member)
+
+          expect(build(:family_membership, family: family, user: create(:user))).to be_valid
+        end
+      end
+
+      it 'does not enforce the member cap in self-hosted mode' do
+        allow(DawarichSettings).to receive(:self_hosted?).and_return(true)
+        create_list(:family_membership, Family::MAX_MEMBERS, family: family, role: :member)
+
+        expect(build(:family_membership, family: family, user: create(:user))).to be_valid
+      end
+    end
+
+    it 'still allows an owner to create the first membership of a new family' do
+      owner = create(:user)
+      new_family = create(:family, creator: owner)
+
+      expect(build(:family_membership, :owner, family: new_family, user: owner)).to be_valid
+    end
+  end
+
   describe 'per-membership sharing' do
     let(:user) { create(:user) }
     let(:membership) { create(:family_membership, user: user) }
