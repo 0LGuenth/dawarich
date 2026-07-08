@@ -3,6 +3,25 @@
 require 'rails_helper'
 
 RSpec.describe FamilyMailer, type: :mailer do
+  describe '#invitation' do
+    let(:family) { create(:family) }
+    let(:invitation) { create(:family_invitation, family: family) }
+
+    subject(:mail) { described_class.invitation(invitation) }
+
+    it 'sends to the invited email' do
+      expect(mail.to).to eq([invitation.email])
+    end
+
+    it 'includes the family name in the subject' do
+      expect(mail.subject).to include(family.name)
+    end
+
+    it 'renders the html body with a token-based accept link' do
+      expect(mail.html_part.decoded).to include("/invitations/#{invitation.token}")
+    end
+  end
+
   describe '#location_request' do
     let(:family) { create(:family) }
     let(:requester) { family.creator }

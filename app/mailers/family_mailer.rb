@@ -17,7 +17,7 @@ class FamilyMailer < ApplicationMailer
     @request = request
     @requester = request.requester
     @target_user = request.target_user
-    @request_url = family_location_request_url(request)
+    @request_url = family_location_request_url(request.family, request)
 
     mail(
       to: @target_user.email,
