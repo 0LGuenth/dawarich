@@ -73,7 +73,7 @@
       <% if user_signed_in? && DawarichSettings.family_feature_enabled? %>
         <li>
           <% if current_user.in_family? %>
-            <%= link_to families_path, class: "mx-1 #{active_class?(families_path)} flex items-center space-x-2", data: { turbo_frame: "_top" } do %>
+            <%= link_to families_path, class: "mx-1 #{active_class?(families_path)} flex items-center space-x-2" do %>
               <span>Family<sup>α</sup></span>
               <%= render 'families/navbar_indicator', user: current_user %>
             <% end %>
