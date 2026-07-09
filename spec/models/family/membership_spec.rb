@@ -169,6 +169,31 @@ RSpec.describe Family::Membership, type: :model do
     end
   end
 
+  describe '#latest_location' do
+    let(:user) { create(:user) }
+    let(:membership) { create(:family_membership, user: user) }
+
+    it 'returns nil when sharing is not active' do
+      create(:point, user: user, lonlat: 'POINT(13.4 52.5)', timestamp: 1.hour.ago.to_i)
+
+      expect(membership.latest_location).to be_nil
+    end
+
+    it "returns a hash with the newest point's coordinates when active" do
+      create(:point, user: user, lonlat: 'POINT(1 1)', timestamp: 2.days.ago.to_i)
+      create(:point, user: user, lonlat: 'POINT(13.4 52.5)', timestamp: 1.hour.ago.to_i)
+
+      membership.update_sharing!(true, duration: 'permanent')
+
+      result = membership.latest_location
+
+      expect(result[:latitude]).to be_within(0.01).of(52.5)
+      expect(result[:longitude]).to be_within(0.01).of(13.4)
+      expect(result[:user_id]).to eq(user.id)
+      expect(result[:email]).to eq(user.email)
+    end
+  end
+
   describe '#history_points' do
     let(:user) { create(:user) }
     let(:membership) { create(:family_membership, user: user) }

@@ -50,6 +50,24 @@ class Family::Membership < ApplicationRecord
     sharing_duration.presence || 'permanent'
   end
 
+  # Used by FamiliesController#show (per-member card) via &:latest_location.
+  # Distinct from Families::Locations#latest_location (map/API payload, includes battery).
+  def latest_location
+    return nil unless sharing_active?
+
+    latest_point = user.scoped_points.select(:lonlat, :timestamp).order(timestamp: :desc).limit(1).first
+    return nil unless latest_point
+
+    {
+      user_id: user.id,
+      email: user.email,
+      latitude: latest_point.lat,
+      longitude: latest_point.lon,
+      timestamp: latest_point.timestamp,
+      updated_at: Time.zone.at(latest_point.timestamp)
+    }
+  end
+
   def history_points(start_at:, end_at:)
     return Point.none unless sharing_active?
     return Point.none unless share_history?
