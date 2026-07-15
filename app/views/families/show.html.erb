@@ -120,12 +120,9 @@
                   </div>
                 </div>
                 <% if current_user.owner_of?(@family) && member != current_user && !@memberships_by_user[member.id]&.owner? %>
-                  <%= link_to family_member_path(@family, @memberships_by_user[member.id]),
+                  <%= button_to family_member_path(@family, @memberships_by_user[member.id]),
                         method: :delete,
-                        data: {
-                          turbo_confirm: "Remove #{member.email} from the family?",
-                          turbo_method: :delete
-                        },
+                        form: { data: { turbo_confirm: "Remove #{member.email} from the family?" } },
                         class: "btn btn-ghost btn-xs text-error ml-auto" do %>
                     <%= icon 'x', class: 'w-3.5 h-3.5' %> Remove
                   <% end %>
@@ -207,17 +204,17 @@
       <%# Danger zone %>
       <div class="flex gap-2 justify-end">
         <% if !current_user.owner_of?(@family) && @memberships_by_user[current_user.id] %>
-          <%= link_to family_member_path(@family, @memberships_by_user[current_user.id]),
+          <%= button_to family_member_path(@family, @memberships_by_user[current_user.id]),
                 method: :delete,
-                data: { turbo_confirm: 'Are you sure you want to leave this family?', turbo_method: :delete },
+                form: { data: { turbo_confirm: 'Are you sure you want to leave this family?' } },
                 class: "btn btn-ghost btn-xs text-warning" do %>
             Leave Family
           <% end %>
         <% end %>
         <% if policy(@family).destroy? %>
-          <%= link_to family_path(@family),
+          <%= button_to family_path(@family),
                 method: :delete,
-                data: { turbo_confirm: 'Delete this family? This cannot be undone.', turbo_method: :delete },
+                form: { data: { turbo_confirm: 'Delete this family? This cannot be undone.' } },
                 class: "btn btn-ghost btn-xs text-error" do %>
             <%= icon 'trash-2', class: 'w-3.5 h-3.5' %> Delete Family
           <% end %>
