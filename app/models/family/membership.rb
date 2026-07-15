@@ -74,10 +74,10 @@ class Family::Membership < ApplicationRecord
     return Point.none unless sharing_started_at
 
     window_start = case history_window
-                   when '7d' then 7.days.ago
+                   when '24h' then 24.hours.ago
                    when '30d' then 30.days.ago
                    when 'all' then 1.year.ago
-                   else 24.hours.ago
+                   else 7.days.ago
                    end
 
     effective_start = [start_at, sharing_started_at, window_start].max
@@ -118,7 +118,7 @@ class Family::Membership < ApplicationRecord
   end
 
   def validate_history_window(window)
-    VALID_HISTORY_WINDOWS.include?(window) ? window : '24h'
+    VALID_HISTORY_WINDOWS.include?(window) ? window : UserFamily::DEFAULT_HISTORY_WINDOW
   end
 
   def clear_family_cache

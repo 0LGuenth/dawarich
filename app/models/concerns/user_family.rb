@@ -21,6 +21,8 @@ module UserFamily
              inverse_of: :target_user, dependent: :destroy
   end
 
+  DEFAULT_HISTORY_WINDOW = '7d'
+
   def in_family?
     family_memberships.exists?
   end

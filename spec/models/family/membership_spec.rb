@@ -163,9 +163,9 @@ RSpec.describe Family::Membership, type: :model do
       expect(other.sharing_active?).to be(false)
     end
 
-    it 'validates history_window, falling back to 24h' do
+    it 'validates history_window, falling back to the default window' do
       membership.update_sharing!(true, duration: 'permanent', history_window: 'bogus')
-      expect(membership.history_window).to eq('24h')
+      expect(membership.history_window).to eq(UserFamily::DEFAULT_HISTORY_WINDOW)
     end
   end
 

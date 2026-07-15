@@ -14,8 +14,7 @@ class FamilyPolicy < ApplicationPolicy
     # results in a proper error message instead of "not authorized"
     return true if DawarichSettings.self_hosted?
 
-    # Add cloud subscription checks here when implemented
-    true
+    user.family?
   end
 
   def update?

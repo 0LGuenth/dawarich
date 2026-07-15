@@ -16,7 +16,7 @@ class BackfillMembershipSharingFromUserSettings < ActiveRecord::Migration[8.0]
         sharing_started_at: parse_time(sharing['started_at']),
         sharing_expires_at: parse_time(sharing['expires_at']),
         share_history: sharing['share_history'] == true,
-        history_window: sharing['history_window'].presence || '24h',
+        history_window: sharing['history_window'].presence || '7d',
         sharing_duration: sharing['duration']
       )
     end
@@ -25,7 +25,7 @@ class BackfillMembershipSharingFromUserSettings < ActiveRecord::Migration[8.0]
   def down
     Family::Membership.update_all(
       sharing_enabled: false, sharing_started_at: nil, sharing_expires_at: nil,
-      share_history: false, history_window: '24h', sharing_duration: nil
+      share_history: false, history_window: '7d', sharing_duration: nil
     )
   end
 

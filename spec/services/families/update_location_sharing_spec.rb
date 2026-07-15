@@ -103,13 +103,13 @@ RSpec.describe Families::UpdateLocationSharing do
       end
 
       context 'with invalid history_window' do
-        it 'falls back to 24h' do
+        it 'falls back to the default window' do
           described_class.new(
             membership: membership, enabled: 'true', duration: '1h',
             share_history: nil, history_window: 'invalid_value'
           ).call
 
-          expect(membership.reload.history_window).to eq('24h')
+          expect(membership.reload.history_window).to eq(UserFamily::DEFAULT_HISTORY_WINDOW)
         end
       end
 
