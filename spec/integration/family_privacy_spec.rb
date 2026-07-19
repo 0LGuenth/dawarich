@@ -49,12 +49,12 @@ RSpec.describe 'Family Privacy Enforcement', type: :model do
     end
 
     it 'hides pre-disable history after re-enabling with the default window' do
-      # Enable sharing a week ago
+      # Enable sharing two weeks ago
       membership_a.update_sharing!(true, duration: 'permanent', share_history: true)
-      membership_a.update!(sharing_started_at: 1.week.ago)
+      membership_a.update!(sharing_started_at: 2.weeks.ago)
 
       # Create old point
-      create(:point, user: user_a, timestamp: 3.days.ago.to_i)
+      create(:point, user: user_a, timestamp: 10.days.ago.to_i)
 
       # Disable then re-enable
       membership_a.update_sharing!(false)
@@ -62,7 +62,7 @@ RSpec.describe 'Family Privacy Enforcement', type: :model do
       travel_to 1.minute.from_now do
         membership_a.update_sharing!(true, duration: 'permanent', share_history: true)
 
-        # Old points (3 days ago) fall outside the default 24h history window,
+        # Old points (10 days ago) fall outside the default 7d history window,
         # so they should NOT be visible.
         history = Families::Locations.new(user_b).history(start_at: 1.week.ago, end_at: Time.current)
         expect(history).to be_empty
