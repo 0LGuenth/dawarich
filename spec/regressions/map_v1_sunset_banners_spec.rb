@@ -22,7 +22,7 @@ RSpec.describe 'Map v1 sunset banners', type: :request do
       allow(DawarichSettings).to receive(:family_feature_enabled?).and_return(true)
       create(:family_membership, :owner, family: family, user: user)
       create(:family_membership, family: family, user: sharer)
-      sharer.update_family_location_sharing!(true, duration: 'permanent')
+      sharer.membership_for(family).update_sharing!(true, duration: 'permanent')
     end
 
     it 'shows the family-history-on-v2 banner' do

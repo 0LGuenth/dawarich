@@ -39,6 +39,12 @@ module UserFamily
     family_memberships.find_by(family_id: family.id)
   end
 
+  def family_map_sharing_active?
+    return false unless in_family?
+
+    Family::Membership.where(family_id: families.select(:id)).any?(&:sharing_active?)
+  end
+
   def owner_of?(family)
     return false unless family
 
