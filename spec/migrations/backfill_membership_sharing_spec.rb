@@ -35,7 +35,7 @@ RSpec.describe BackfillMembershipSharingFromUserSettings do
       expect(membership.sharing_expires_at).to be_within(1.second).of(expires_at)
     end
 
-    it "falls back to '24h' history_window when the blob's history_window is blank" do
+    it "falls back to '7d' history_window when the blob's history_window is blank" do
       set_sharing_blob(
         'enabled' => true,
         'share_history' => false,
@@ -46,7 +46,7 @@ RSpec.describe BackfillMembershipSharingFromUserSettings do
       membership.reload
 
       expect(membership.sharing_enabled).to be(true)
-      expect(membership.history_window).to eq('24h')
+      expect(membership.history_window).to eq('7d')
     end
 
     it 'leaves the membership at defaults when sharing is not enabled' do
@@ -57,7 +57,7 @@ RSpec.describe BackfillMembershipSharingFromUserSettings do
 
       expect(membership.sharing_enabled).to be(false)
       expect(membership.share_history).to be(false)
-      expect(membership.history_window).to eq('24h')
+      expect(membership.history_window).to eq('7d')
       expect(membership.sharing_duration).to be_nil
     end
 
