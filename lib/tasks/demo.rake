@@ -387,8 +387,6 @@ namespace :demo do
 
           Point.create!(
             user: member,
-            latitude: lat,
-            longitude: lon,
             lonlat: "POINT(#{lon} #{lat})",
             timestamp: timestamp,
             altitude: base_point.altitude || 0,
@@ -617,8 +615,6 @@ namespace :demo do
 
       Point.create!(
         user: user,
-        latitude: lat,
-        longitude: lon,
         lonlat: "POINT(#{lon} #{lat})",
         timestamp: timestamp,
         altitude: rand(30..80),
@@ -644,8 +640,6 @@ namespace :demo do
 
       Point.create!(
         user: user,
-        latitude: lat,
-        longitude: lon,
         lonlat: "POINT(#{lon} #{lat})",
         timestamp: timestamp,
         altitude: rand(30..80),
