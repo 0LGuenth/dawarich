@@ -2,7 +2,11 @@
 
 class FamiliesController < ApplicationController
   before_action :authenticate_user!
-  before_action :ensure_family_feature_enabled!
+  # #new doubles as the landing page for users without the plan (upgrade CTA
+  # instead of the create form). #destroy stays open so a lapsed owner can
+  # dissolve the family. #index/#show stay open so members of a lapsed family
+  # (whose per-user family_feature_available? is false) can still reach them.
+  before_action :ensure_family_feature_available!, except: %i[index show new destroy]
   before_action :set_family, only: %i[show edit update destroy]
 
   def index
@@ -11,6 +15,12 @@ class FamiliesController < ApplicationController
 
   def show
     authorize @family
+
+    if @family.lapsed?
+      @is_owner = current_user.owner_of?(@family)
+      @family_upgrade_url = helpers.family_upgrade_url(utm_medium: 'family', utm_content: 'renew_family') if @is_owner
+      render :lapsed and return
+    end
 
     @members = @family.members.order(:email)
     @pending_invitations = @family.active_invitations.order(:created_at)

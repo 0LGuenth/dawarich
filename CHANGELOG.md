@@ -4,13 +4,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.11.0] - 2026-08-02, Berlin
 
-## Unreleased
+### Added
+
+- The onboarding dialog now leads with **Start tracking** instead of importing, so a new account can get a phone sending points right away. Importing from Google Timeline and the other sources is still one click away in the same dialog.
+- Google Takeout (phone takeout, Semantic Location History) and Polarsteps imports can now also extract **visits**, **named places**, **tracks** and the source app's **transportation-mode classification**, alongside raw GPS points. Places named by Google Takeout (Home, Work, …) keep their original names. New imports extract automatically; for older ones use **Extract additional data** in the Imports list. Untick **Trust the source app's classification** to have Dawarich re-detect modes using your settings. Visits found by Dawarich's own detection are kept alongside the imported ones. **Remove extracted data** undoes an extraction and leaves your GPS points untouched.
+
+### Changed
+
+- Ordering a printed poster from the Poster Studio is now available to everyone instead of sitting behind a feature flag. To opt out, switch the `poster_ordering` flag off at `/admin/flipper` or leave `PRINT_ORDER_URL` blank. Note that the upgrade turns the flag on once, even on an instance that had already switched it off — switch it off again afterwards and it stays off.
+- GPS noise filtering no longer uses the "Accuracy Threshold" setting, and the slider is gone. A reported accuracy radius is a confidence estimate, not proof a position is wrong: Google Timeline routinely reports 1-4km for points sitting exactly on the road, and dropping those replaced real route geometry with straight lines. Only radii too large to be a position at all are discarded; wrong positions are caught by the speed checks instead. Any saved value now does nothing, and `gps_accuracy_threshold` is ignored by the settings API rather than rejected.
+- Points within 5km of (0, 0) are treated as broken coordinates everywhere — import, cleanup and noise filtering previously disagreed on what counted as near-zero.
+- Existing points are re-checked against the new noise rules after the upgrade, and tracks, stats and digests are rebuilt from the result. Points hidden by the former accuracy rule come back, and displaced fixes the new checks catch are dropped. The work is spread across accounts, and every per-account pass — including the track rebuild it triggers — runs on the lowest-priority queue, so live tracking and imports keep going ahead of it; accounts with GPS filtering off are skipped. You get a notification when your own re-check is done, and self-hosted instances can also check progress under Background jobs settings.
 
 ### Fixed
 
+- The Family plan now works on Dawarich Cloud. Family pages, invitations, members and location sharing were self-hosted only, so subscribers hit errors on every family route. Access now follows the subscription: plan holders can create a family, and everyone they invite gets full family access without a subscription of their own. Users without the plan see the upgrade page instead of an error. If the owner stops paying, members fall back to their own plans once the paid period ends — the family itself is kept, so resubscribing restores it, and pending invitations can no longer be accepted. Self-hosted instances are unchanged.
+- Family members no longer keep Pro access indefinitely after the owner's subscription lapses; they revert to their own plan once the owner's paid period ends. Cancelling still leaves members with access until that period is over.
+- Self-hosted mode is now recognised from common `SELF_HOSTED` values (quoted `"true"`, `TRUE`, whitespace-padded, `1`, `yes`, `on`), not only the exact string `true`, so a non-canonical value no longer flips an instance into cloud mode and blocks LAN integration URLs (such as Immich) as SSRF. (#2522)
+- Outgoing email no longer fails against slower SMTP servers: connection open/read timeouts now match net-smtp's own 30s and 60s instead of a 5-second cap that failed digest reports with `Net::OpenTimeout`. Tune with `SMTP_OPEN_TIMEOUT`/`SMTP_READ_TIMEOUT` (#3096)
+- FIT files that carry developer data fields (such as those from Wahoo devices) now import their location records instead of failing to parse. (#2945)
+- Google Timeline imports now keep path points in order when several share the same minute-resolution timestamp: tied points are spaced one second apart, while genuine repeats at the same coordinate still collapse into one. Caveat: the synthetic spacing shifts the deduplication key, so delete the affected date range before re-importing the same file. (#3115)
+- Visit detection no longer turns long slow walks into one large suggested visit centered somewhere the user never stopped (#2970).
+- Photon place names no longer show generic "Yes" categories in visits (#3050)
+- Imports that finish with zero saved points now notify you instead of completing silently. GPX and KML files are called out when they lack per-point timestamps. (#3062)
+- Traccar KML exports now import LineString points using the time range in each track name instead of completing with zero points (#3120)
+- "Cancel my account" now works on self-hosted instances. It never sent a password, so the request failed silently with a 401; deletion now asks for confirmation in a dialog and reports failures. Accounts registered through OIDC, which never had a password, can confirm with their email address, on the web and via the API. (#3107)
+- Tracks no longer connect two different devices. Google's Records.json contains every device on the account, and imports made before 1.10.0 stamped them all as one, so a phone left at home was stitched to the one that travelled. Existing imports are repaired automatically by re-reading the uploaded file.
+- Restoring a data archive now recomputes GPS noise flags. The archive carries none, so restored points previously arrived unfiltered and tracks were rebuilt from noise the instance had already learned to ignore.
+- The Map v2 custom basemap field now accepts MapLibre style URLs whose path has no `.json` suffix, such as `https://tiles.openfreemap.org/styles/liberty`. A tile URL missing a `{z}`/`{x}`/`{y}` placeholder, or ending in a tile file extension, is still rejected. (#3256)
+
+
+## [1.10.3] - 2026-07-28, Berlin
+
+### Added
+
+- The Map v2 "Edit points" toggle is now remembered between sessions instead of resetting to off on every page load; it still defaults to off, so points stay protected from accidental drags until you opt in. On the Lite plan it stays session-only, since editing points requires Pro. (#3085)
+
+### Changed
+
+- The Docker image no longer ships ImageMagick — nothing in the app used it, so the image gets smaller. (#3139)
+
+### Fixed
+
+- Turning "Edit points" off on Map v2 now reliably disables point dragging. Changing the map style while editing was on left a stale drag handler attached, so points stayed draggable no matter what the toggle said.
+- The Family entry in the navigation bar is now clickable across its entire button area instead of only the label text. (#3100)
+- The Dawarich app and Sidekiq containers now restart automatically after a graceful (exit 0) shutdown instead of staying down, so a stray SIGHUP no longer takes an instance offline until manual intervention (#3099).
+- Nightly place- and area-visit calculation no longer fails when an instance contains legacy points without timestamps.
+- Import rows on the Imports page now update their status live as an import processes, instead of staying on "Processing" until the page is manually reloaded. (#3174)
+- Public live-share links now update in real time for signed-in visitors, instead of only refreshing the location on a full page reload. (#3111)
+- Reverse geocoding and place-name provider outages no longer flood error reporting with handled timeouts, dropped TLS connections, refused connections, unresolvable hostnames, or invalid provider responses. A misconfigured or rate-limited provider — a bad API key, for example — is still reported.
+- The place search box behind visit naming and the Map v2 place picker gets the same treatment: a query the geocoder rejects, or a provider that is briefly unreachable, is logged and returns no matches instead of raising an application error. Self-hosted logs now name the failing error class, and a misconfigured or rate-limited provider is still reported.
+- Unexpected place search errors no longer include the search query or coordinates in error reports.
+- Place visit detection no longer fails when an unused suggested place is deleted while the nightly calculation is running.
+- Clicking "Continue reverse geocoding" again now re-processes points that were left ungeocoded by a previous run, instead of skipping them for up to a day. (#3071)
+- Public share links now expire at the start of the selected date in the owner's timezone instead of remaining active through that day (#3112).
+- The share link form now spells out that a link stays active only through the day before the selected expiry date.
+
+
+## [1.10.2] - 2026-07-27, Berlin
+
+### Added
+
+- Poster Studio has a track width control: a 50–300% slider beside track opacity that scales the route line on the saved poster.
+- The Map v2 custom basemap field now accepts raster XYZ tiles (`.png`/`.jpg`/`.jpeg`/`.webp`) and full MapLibre style URLs ending in `.json`, in addition to Protomaps-schema vector tiles. Previously a raster URL rendered as a blank grey map and a style URL was rejected. (#3146)
+
+### Fixed
+
+- Saving a zoomed-out Poster Studio view to the gallery no longer rejects routes that are visibly inside the poster frame (#3204). The area check now uses the same Mercator framing as the renderer and wraps across the antimeridian, so high-latitude and Pacific-centred posters are judged against the frame you actually see. Poster Studio also warns when a view is too wide for the largest poster area instead of silently zooming the saved poster in.
+- Instances with heavy write traffic no longer crash-loop on the 1.10.1 upgrade. Dropping the legacy `points.latitude`/`points.longitude` columns needs an exclusive lock that busy instances could not win in one attempt, which aborted the migration and restarted the container in a loop. The drop is now retried, and if it still cannot get the lock it is handed to a background job so startup completes. If that job cannot get the lock either, the columns stay and the log prints the statement to run by hand — they are unused, so nothing breaks in the meantime (#3176)
+- Trial lifecycle email jobs left over from older releases are now discarded instead of retrying forever in the background queue. Mail addressed to a record that has since been deleted is also discarded rather than retried.
+- Reverse geocoding and place-name provider outages no longer flood error reporting with handled timeouts, dropped TLS connections, or invalid provider responses. A misconfigured or rate-limited provider — a bad API key, for example — is still reported.
+- Reverse geocoding retries point updates that time out while waiting on concurrent writes.
 - Google Semantic History and phone Timeline imports now tag points with a per-import tracker id instead of one shared constant, so tracks from different devices are no longer braided together. A one-time backfill rewrites existing points and regenerates affected tracks per user.
-- Points at exactly (0,0) — a common GPS glitch — are no longer accepted from any ingestion path (API, OwnTracks, Overland, Traccar, file imports) and no longer produce suggested visits at "Null Island". Existing (0,0) points are flagged as anomalies by a one-time cleanup that also removes visits placed at (0,0) and recalculates affected stats and tracks.
+- Place names you set yourself are no longer overwritten by nightly reverse geocoding. Renaming a place, creating one by hand, or picking one on the timeline locks its name; renaming it back to "Suggested place" hands it back to auto-naming. Map v2 and the place drawer show when a name is locked. A one-time backfill locks names that were customised before this release (#3086, #3175)
+- Real-time visit detection no longer stops after the first run for users who track continuously — the debounce key is now released when the job runs.
+- The nightly visit suggestion job no longer scans forward to the end of the calendar year; it processes only the day it was asked for.
+- Merged visits now report the correct duration, centre, radius and suggested name instead of keeping the values of the first cluster in the merge.
+- Visit suggestion failures no longer show a raw stack trace in your notifications, and repeated failures within an hour no longer create a notification each time (#3091)
+- Points at exactly (0,0) — a common GPS glitch — are no longer accepted from any ingestion path (API, OwnTracks, Overland, Traccar, file imports) and no longer produce suggested visits at "Null Island". Existing (0,0) points are flagged as anomalies by a one-time cleanup that also removes visits placed at (0,0), tolerates legacy points without timestamps, and recalculates affected stats and tracks.
+- Point uploads from all ingestion paths (REST API, OwnTracks, Overland, Traccar) now retry transient statement and lock-wait timeouts, not just deadlocks, instead of failing the upload.
+- The DNS caching layer no longer crashes with a misleading `NoMethodError` when the SMTP server is not configured in the background worker, so email delivery surfaces the real configuration error instead. (#3038)
+
 
 ## [1.10.1] - 2026-07-19, Berlin
 
@@ -40,6 +116,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Track generation and user data recalculations now retry a bounded number of times when another job is already processing the same user's tracks, instead of dropping the request and reporting an error; a genuinely stuck lock is logged after the retries are exhausted. The per-user lock also renews itself while a job runs and frees within a minute if a worker dies, so a crashed job no longer blocks a user's track processing for up to half an hour.
 - Dawarich added to an iOS Home Screen now opens Map v2 instead of an unrelated previously visited page (#3097)
 - Point uploads (REST API, OwnTracks, Overland, Traccar) now write batches in a consistent order so concurrent uploads no longer deadlock each other, and both uploads and anomaly filtering recover automatically from any remaining transient database deadlocks instead of failing the upload or background job.
+- Reverse geocoding overlapping places no longer exhausts retries because of concurrent database deadlocks.
 - The app and Sidekiq containers no longer crash-loop on startup when `WEB_CONCURRENCY` or `BACKGROUND_PROCESSING_CONCURRENCY` reach the container as an unexpanded `${VAR:-default}` string (seen with some podman-compose versions); the entrypoint now warns and falls back to the default value (#3124)
 - Cache preheating no longer times out for accounts with large location histories.
 - Cloud: Changing plans resets the Lite archival-warning state, so a user downgraded to Lite again is notified about archived data again.

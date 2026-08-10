@@ -14,7 +14,7 @@ RSpec.describe 'Family Privacy Enforcement', type: :model do
 
   before do
     travel_to(now)
-    allow(DawarichSettings).to receive(:family_feature_enabled?).and_return(true)
+    allow(DawarichSettings).to receive(:family_feature_available_for?).and_return(true)
   end
 
   after { travel_back }

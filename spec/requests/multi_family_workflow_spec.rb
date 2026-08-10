@@ -3,7 +3,7 @@
 require 'rails_helper'
 
 RSpec.describe 'Multi-family workflow', type: :request do
-  before { allow(DawarichSettings).to receive(:family_feature_enabled?).and_return(true) }
+  before { allow(DawarichSettings).to receive(:family_feature_available_for?).and_return(true) }
 
   it 'lets a user create two families and share independently' do
     user = create(:user)

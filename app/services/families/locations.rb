@@ -34,7 +34,7 @@ class Families::Locations
   private
 
   def available?
-    DawarichSettings.family_feature_enabled? && user.in_family?
+    DawarichSettings.family_feature_available_for?(user) && user.in_family?
   end
 
   # Yields [family, sharing_memberships] for each of the user's families that

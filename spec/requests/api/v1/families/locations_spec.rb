@@ -5,7 +5,7 @@ require 'rails_helper'
 RSpec.describe 'Api::V1::Families::Locations', type: :request do
   include ActiveSupport::Testing::TimeHelpers
 
-  before { allow(DawarichSettings).to receive(:family_feature_enabled?).and_return(true) }
+  before { allow(DawarichSettings).to receive(:family_feature_available_for?).and_return(true) }
 
   describe 'GET /api/v1/families/locations' do
     it 'returns deduped flat locations and grouped families' do

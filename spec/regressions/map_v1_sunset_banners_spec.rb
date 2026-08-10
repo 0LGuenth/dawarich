@@ -19,7 +19,6 @@ RSpec.describe 'Map v1 sunset banners', type: :request do
     let(:sharer) { create(:user) }
 
     before do
-      allow(DawarichSettings).to receive(:family_feature_enabled?).and_return(true)
       create(:family_membership, :owner, family: family, user: user)
       create(:family_membership, family: family, user: sharer)
       sharer.membership_for(family).update_sharing!(true, duration: 'permanent')

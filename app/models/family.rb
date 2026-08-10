@@ -33,6 +33,13 @@ class Family < ApplicationRecord
     @owner ||= creator
   end
 
+  # Derived, not stored (matches master): a family is lapsed when its owner no
+  # longer holds an active Family plan. Self-hosted never lapses because
+  # family_feature_available_for? returns true there.
+  def lapsed?
+    !DawarichSettings.family_feature_available_for?(owner)
+  end
+
   def full?
     return false if DawarichSettings.self_hosted?
 

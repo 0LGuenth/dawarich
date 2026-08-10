@@ -2,7 +2,9 @@
 
 class Family::InvitationsController < ApplicationController
   before_action :authenticate_user!, except: %i[show]
-  before_action :ensure_family_feature_enabled!, except: %i[show]
+  # #index and #destroy stay open so a lapsed owner can still see and revoke
+  # pending invitations; accepting them is blocked separately while lapsed.
+  before_action :ensure_family_feature_available!, except: %i[show index destroy]
   before_action :set_family, except: %i[show]
   before_action :set_invitation_by_id_and_family, only: %i[destroy]
 
@@ -18,9 +20,11 @@ class Family::InvitationsController < ApplicationController
 
     redirect_to root_path, alert: 'This invitation has expired.' and return if @invitation.expired?
 
-    return if @invitation.pending?
+    redirect_to root_path, alert: 'This invitation is no longer valid.' and return unless @invitation.pending?
 
-    redirect_to root_path, alert: 'This invitation is no longer valid.' and return
+    # Warns the invitee up front instead of letting them click Accept only to
+    # be refused by the plan validation in Families::AcceptInvitation.
+    @family_plan_active = DawarichSettings.family_feature_available_for?(@invitation.family.owner)
   end
 
   def create

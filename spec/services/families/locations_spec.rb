@@ -7,7 +7,7 @@ RSpec.describe Families::Locations do
 
   let(:user) { create(:user) }
 
-  before { allow(DawarichSettings).to receive(:family_feature_enabled?).and_return(true) }
+  before { allow(DawarichSettings).to receive(:family_feature_available_for?).and_return(true) }
 
   # update_sharing! stamps sharing_started_at at "now"; back-date it so points
   # created in the past fall inside the history window.
@@ -63,12 +63,26 @@ RSpec.describe Families::Locations do
       expect(described_class.new(user).call).to eq([])
     end
 
-    it 'returns empty array when the family feature is disabled' do
-      allow(DawarichSettings).to receive(:family_feature_enabled?).and_return(false)
+    it 'returns empty array when the family feature is unavailable' do
+      allow(DawarichSettings).to receive(:family_feature_available_for?).and_return(false)
       fam = create(:family)
       create(:family_membership, user: user, family: fam)
 
       expect(described_class.new(user).call).to eq([])
+    end
+
+    context 'when the caller is a cloud user without the family plan' do
+      before { allow(DawarichSettings).to receive(:family_feature_available_for?).and_return(false) }
+
+      it 'returns an empty array even when members share' do
+        fam = create(:family)
+        create(:family_membership, user: user, family: fam)
+        sharer = create(:user)
+        enable_sharing(create(:family_membership, user: sharer, family: fam))
+        create(:point, user: sharer, timestamp: 1.hour.ago.to_i)
+
+        expect(described_class.new(user).call).to eq([])
+      end
     end
   end
 
@@ -76,6 +90,17 @@ RSpec.describe Families::Locations do
     it 'returns empty array when user is in no families' do
       result = described_class.new(user).history(start_at: 1.day.ago, end_at: Time.current)
       expect(result).to eq([])
+    end
+
+    context 'when feature is disabled' do
+      before { allow(DawarichSettings).to receive(:family_feature_available_for?).and_return(false) }
+
+      it 'returns empty array' do
+        fam = create(:family)
+        create(:family_membership, user: user, family: fam)
+        result = described_class.new(user).history(start_at: 1.day.ago, end_at: Time.current)
+        expect(result).to eq([])
+      end
     end
 
     it 'returns grouped history points for sharing members' do
