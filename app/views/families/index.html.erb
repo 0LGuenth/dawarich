@@ -35,13 +35,13 @@
 
       <%= form_with model: Family.new, url: families_path, local: true, class: "space-y-4" do |form| %>
         <div>
-          <%= form.label :name, 'Family Name', class: "label label-text font-medium mb-1" %>
+          <%= form.label :name, t('families.form.name'), class: "label label-text font-medium mb-1" %>
           <%= form.text_field :name,
-                placeholder: 'Enter your family name',
+                placeholder: t('families.form.name_placeholder'),
                 class: "input input-bordered w-full" %>
         </div>
         <div class="flex justify-end">
-          <%= form.submit 'Create Family', class: "btn btn-primary" %>
+          <%= form.submit t('families.form.create'), class: "btn btn-primary" %>
         </div>
       <% end %>
     </div>

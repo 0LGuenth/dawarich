@@ -11,14 +11,16 @@ class Family::LocationRequestsController < ApplicationController
     target = @family.members.find_by(id: params[:target_user_id])
 
     unless target
-      redirect_to family_path(@family), alert: 'User not found in your family'
+      redirect_to family_path(@family),
+                  alert: I18n.t('controllers.family.location_requests.user_not_found_in_your_family')
       return
     end
 
     result = Families::CreateLocationRequest.new(requester: current_user, target_user: target, family: @family).call
 
     if result.success?
-      redirect_to family_path(@family), notice: 'Location request sent successfully'
+      redirect_to family_path(@family),
+                  notice: I18n.t('controllers.family.location_requests.location_request_sent_successfully')
     else
       redirect_to family_path(@family), alert: result.payload[:message]
     end
@@ -30,7 +32,9 @@ class Family::LocationRequestsController < ApplicationController
 
   def accept
     unless actionable?
-      redirect_to family_path(@family), alert: 'This request has expired or already been responded to'
+      alert = I18n.t('controllers.family.location_requests.this_request_has_expired_or_already_been_responded_to')
+      redirect_to family_path(@family),
+                  alert: alert
       return
     end
 
@@ -40,18 +44,20 @@ class Family::LocationRequestsController < ApplicationController
       @request.update!(status: :accepted, responded_at: Time.current)
     end
 
-    redirect_to family_path(@family), notice: 'Location sharing enabled'
+    redirect_to family_path(@family), notice: I18n.t('controllers.family.location_requests.location_sharing_enabled')
   end
 
   def decline
     unless actionable?
-      redirect_to family_path(@family), alert: 'This request has expired or already been responded to'
+      alert = I18n.t('controllers.family.location_requests.this_request_has_expired_or_already_been_responded_to')
+      redirect_to family_path(@family),
+                  alert: alert
       return
     end
 
     @request.update!(status: :declined, responded_at: Time.current)
 
-    redirect_to family_path(@family), notice: 'Location request declined'
+    redirect_to family_path(@family), notice: I18n.t('controllers.family.location_requests.location_request_declined')
   end
 
   private
@@ -69,7 +75,14 @@ class Family::LocationRequestsController < ApplicationController
   def authorize_target_user!
     return if @request.target_user == current_user
 
-    redirect_to family_path(@family), alert: 'You are not authorized to view this request'
+    redirect_to family_path(@family),
+                alert: I18n.t('controllers.family.location_requests.you_are_not_authorized_to_view_this_request')
+  end
+
+  def ensure_user_in_family!
+    return if current_user&.in_family?
+
+    redirect_to root_path, alert: I18n.t('controllers.family.location_requests.you_must_be_part_of_a_family')
   end
 
   def actionable?

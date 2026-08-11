@@ -4,7 +4,7 @@
        data-family-navbar-indicator-enabled-value="<%= sharing %>">
     <div data-family-navbar-indicator-target="indicator"
          class="tooltip tooltip-bottom w-2 h-2 <%= sharing ? 'bg-green-500 animate-pulse' : 'bg-gray-400' %> rounded-full"
-         data-tip="<%= sharing ? 'Location is being shared with at least one family' : 'Location is not being shared with any family' %>">
+         data-tip="<%= t(sharing ? '.location_shared' : '.location_not_shared') %>">
     </div>
   </div>
 <% end %>

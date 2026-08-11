@@ -54,7 +54,7 @@ class FamiliesController < ApplicationController
     )
 
     if service.call
-      redirect_to family_path(service.family), notice: 'Family created successfully!'
+      redirect_to family_path(service.family), notice: I18n.t('controllers.families.family_created_successfully')
     else
       @family = Family.new(family_params)
 
@@ -66,7 +66,7 @@ class FamiliesController < ApplicationController
 
       @family.errors.add(:base, service.error_message) if service.error_message.present?
 
-      flash.now[:alert] = service.error_message || 'Failed to create family'
+      flash.now[:alert] = service.error_message || I18n.t('controllers.families.failed_to_create_family')
       render :new, status: :unprocessable_content
     end
   end
@@ -79,7 +79,7 @@ class FamiliesController < ApplicationController
     authorize @family
 
     if @family.update(family_params)
-      redirect_to family_path(@family), notice: 'Family updated successfully!'
+      redirect_to family_path(@family), notice: I18n.t('controllers.families.family_updated_successfully')
     else
       render :edit, status: :unprocessable_content
     end
@@ -89,10 +89,11 @@ class FamiliesController < ApplicationController
     authorize @family
 
     if @family.members.count > 1
-      redirect_to family_path(@family), alert: 'Cannot delete family with members. Remove all members first.'
+      redirect_to family_path(@family),
+                  alert: I18n.t('controllers.families.cannot_delete_family_with_members_remove_all_members_first')
     else
       @family.destroy
-      redirect_to families_path, notice: 'Family deleted successfully!'
+      redirect_to families_path, notice: I18n.t('controllers.families.family_deleted_successfully')
     end
   end
 

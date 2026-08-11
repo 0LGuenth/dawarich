@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { formatNumber, translate } from "i18n"
 import { Toast } from "maps_maplibre/components/toast"
 import { ReplayPanel } from "maps_maplibre/managers/replay_panel"
 import { ApiClient } from "maps_maplibre/services/api_client"
@@ -54,7 +55,6 @@ export default class extends Controller {
     "minutesBetweenValue",
     "minMinutesInCityValue",
     "maxGapMinutesValue",
-    "stayMaxGapMinutesValue",
     "gpsFilteringToggle",
     // Search
     "searchInput",
@@ -107,40 +107,8 @@ export default class extends Controller {
     "routeSpeed",
     "routeSpeedContainer",
     "routePoints",
-    // Transportation mode thresholds
+    // Transportation mode detection
     "transportationCollapseToggle",
-    "transportationExpertToggle",
-    "transportationBasicSettings",
-    "transportationExpertSettings",
-    // Transportation speed inputs
-    "walkingMaxSpeedInput",
-    "cyclingMaxSpeedInput",
-    "drivingMaxSpeedInput",
-    "flyingMinSpeedInput",
-    // Transportation speed value displays
-    "walkingMaxSpeedValue",
-    "cyclingMaxSpeedValue",
-    "drivingMaxSpeedValue",
-    "flyingMinSpeedValue",
-    // Transportation expert inputs
-    "stationaryMaxSpeedInput",
-    "trainMinSpeedInput",
-    "runningVsCyclingAccelInput",
-    "cyclingVsDrivingAccelInput",
-    "minSegmentDurationInput",
-    "timeGapThresholdInput",
-    "minFlightDistanceInput",
-    // Transportation expert value displays
-    "stationaryMaxSpeedValue",
-    "trainMinSpeedValue",
-    "runningVsCyclingAccelValue",
-    "cyclingVsDrivingAccelValue",
-    "minSegmentDurationValue",
-    "timeGapThresholdValue",
-    "minFlightDistanceValue",
-    // Transportation unit labels
-    "speedUnitLabel",
-    "distanceUnitLabel",
     // Transportation recalculation status
     "transportationRecalculationAlert",
     "transportationLockedMessage",
@@ -539,7 +507,7 @@ export default class extends Controller {
       this.progressBadgeTarget.classList.add("visible")
     }
     if (this.hasProgressBadgeTextTarget) {
-      this.progressBadgeTextTarget.textContent = "Loading..."
+      this.progressBadgeTextTarget.textContent = translate("common.loading")
     }
   }
 
@@ -584,13 +552,23 @@ export default class extends Controller {
     const counts = this._lastLoadingCounts || {}
     const parts = []
     for (const [source, count] of Object.entries(counts)) {
-      parts.push(`${count.toLocaleString()} ${source}`)
+      parts.push(
+        translate(`loading_sources.${source}`, {
+          count,
+          formatted_count: formatNumber(count),
+        }),
+      )
     }
 
     // Append family count if family layer is enabled
-    if (this.settings?.familyEnabled) {
+    if (this.settings?.familyEnabled && counts.family === undefined) {
       const familyCount = this._familyMemberCount || 0
-      parts.push(`${familyCount.toLocaleString()} family members`)
+      parts.push(
+        translate("loading_sources.family", {
+          count: familyCount,
+          formatted_count: formatNumber(familyCount),
+        }),
+      )
     }
 
     // Detect when a new data source appears and trigger a pop animation
@@ -608,7 +586,7 @@ export default class extends Controller {
     this._lastSourceCount = sourceCount
 
     this.progressBadgeTextTarget.textContent =
-      parts.length > 0 ? parts.join(" \u00B7 ") : "Loading..."
+      parts.length > 0 ? parts.join(" \u00B7 ") : translate("common.loading")
 
     if (isComplete) {
       if (this.hasProgressBadgeTarget) {
@@ -1260,9 +1238,6 @@ export default class extends Controller {
   updateMaxGapMinutesDisplay(event) {
     return this.settingsController.updateMaxGapMinutesDisplay(event)
   }
-  updateStayMaxGapMinutesDisplay(event) {
-    return this.settingsController.updateStayMaxGapMinutesDisplay(event)
-  }
   reapplyAnomalyFilter() {
     return this.settingsController.reapplyAnomalyFilter()
   }
@@ -1271,12 +1246,6 @@ export default class extends Controller {
   }
   toggleGlobe(event) {
     return this.settingsController.toggleGlobe(event)
-  }
-  toggleTransportationExpertMode(event) {
-    return this.settingsController.toggleTransportationExpertMode(event)
-  }
-  updateTransportationThresholdDisplay(event) {
-    return this.settingsController.updateTransportationThresholdDisplay(event)
   }
   markTransportationSettingsDirty(event) {
     return this.settingsController.markTransportationSettingsDirty(event)
@@ -1339,7 +1308,7 @@ export default class extends Controller {
     if (drawerController) {
       drawerController.startDrawing(this.map)
     } else {
-      Toast.error("Area drawer controller not available")
+      Toast.error(translate("messages.area_drawer_controller_not_available"))
     }
   }
 
@@ -1388,9 +1357,9 @@ export default class extends Controller {
       // in place so the side panel matches the map.
       this.eventHandlers?.refreshActiveAreaInfo(areas)
 
-      Toast.success("Area created successfully!")
+      Toast.success(translate("messages.area_created_successfully"))
     } catch (_error) {
-      Toast.error("Failed to reload areas")
+      Toast.error(translate("messages.failed_to_reload_areas"))
     }
   }
 
@@ -1471,7 +1440,7 @@ export default class extends Controller {
 
       if (!response.ok) {
         if (response.status === 403) {
-          Toast.info("Family feature not available")
+          Toast.info(translate("messages.family_feature_not_available"))
           this.updateLoadingCounts({
             counts: { family: 0 },
             isComplete: true,
@@ -1494,13 +1463,15 @@ export default class extends Controller {
       // Feed the family layer the currently-visible subset (one pin per user)
       this.applyFamilyVisibility()
 
-      Toast.success(`Loaded ${locations.length} family member(s)`)
+      Toast.success(
+        translate("family.loaded_members", { count: locations.length }),
+      )
 
       // Load history polylines
       this.loadFamilyHistory()
     } catch (error) {
       console.error("[Maps V2] Failed to load family members:", error)
-      Toast.error("Failed to load family members")
+      Toast.error(translate("messages.failed_to_load_family_members"))
     }
   }
 
@@ -1560,12 +1531,18 @@ export default class extends Controller {
           (Date.now() - sharingDate.getTime()) / (1000 * 60 * 60 * 24),
         ),
       )
-      const formattedDate = sharingDate.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      })
+      const formattedDate = sharingDate.toLocaleDateString(
+        document.documentElement.lang || undefined,
+        {
+          month: "short",
+          day: "numeric",
+        },
+      )
 
-      infoEl.textContent = `Sharing since ${formattedDate} (${daysSharing} day${daysSharing !== 1 ? "s" : ""} of history)`
+      infoEl.textContent = translate("family.sharing_since", {
+        date: formattedDate,
+        count: daysSharing,
+      })
     }
   }
 
@@ -1575,8 +1552,7 @@ export default class extends Controller {
     const container = this.familyMembersContainerTarget
 
     if (!groups || groups.length === 0) {
-      container.innerHTML =
-        '<p class="text-xs text-base-content/60">No family members sharing location</p>'
+      container.innerHTML = `<p class="text-xs text-base-content/60">${translate("family.none_sharing")}</p>`
       return
     }
 
@@ -1811,7 +1787,7 @@ export default class extends Controller {
     const familyLayer = this.layerManager.getLayer("family")
     if (familyLayer) {
       familyLayer.centerOnMember(parseInt(memberId, 10))
-      Toast.success("Centered on family member")
+      Toast.success(translate("messages.centered_on_family_member"))
     }
   }
 
@@ -1836,7 +1812,7 @@ export default class extends Controller {
             // For button actions (modals, etc.), create a button with data-action
             // Use error styling for delete buttons
             const buttonClass =
-              action.label === "Delete"
+              action.handler === "handleDelete"
                 ? "btn btn-sm btn-error"
                 : "btn btn-sm btn-primary"
             return `<button class="${buttonClass}" data-action="click->maps--maplibre#${action.handler}" data-id="${action.id}" data-entity-type="${action.entityType}">${action.label}</button>`
@@ -1900,7 +1876,7 @@ export default class extends Controller {
     const div = document.createElement("div")
     div.appendChild(fragment)
 
-    this.showInfo("Route Information", div.innerHTML)
+    this.showInfo(translate("map_info.route_information"), div.innerHTML)
   }
 
   closeInfo() {
@@ -1984,7 +1960,7 @@ export default class extends Controller {
       })
       document.dispatchEvent(event)
     } catch (_error) {
-      Toast.error("Failed to load visit details")
+      Toast.error(translate("messages.failed_to_load_visit_details"))
     }
   }
 
@@ -2012,7 +1988,7 @@ export default class extends Controller {
         new CustomEvent("area:edit", { detail: { area }, bubbles: true }),
       )
     } catch (_error) {
-      Toast.error("Failed to load area details")
+      Toast.error(translate("messages.failed_to_load_area_details"))
     }
   }
 
@@ -2022,9 +1998,7 @@ export default class extends Controller {
    * full reload.
    */
   async deletePoint(pointId) {
-    const confirmed = confirm(
-      "Delete this point?\n\nThis action cannot be undone.",
-    )
+    const confirmed = confirm(translate("map.confirm_delete_point_permanently"))
     if (!confirmed) return
 
     const numericId = Number(pointId)
@@ -2065,7 +2039,7 @@ export default class extends Controller {
     try {
       await this.api.deletePoint(pointId)
       this.closeInfo()
-      Toast.success("Point deleted successfully")
+      Toast.success(translate("messages.point_deleted_successfully"))
     } catch (_error) {
       // The point still exists server-side, so restore it in the cache even
       // when the layer reconcile below is skipped.
@@ -2097,7 +2071,7 @@ export default class extends Controller {
         pointsLayer.data = currentData
         this.routesManager.reloadRoutes().catch((error) => console.error(error))
       }
-      Toast.error("Failed to delete point")
+      Toast.error(translate("messages.failed_to_delete_point"))
     }
   }
 
@@ -2111,12 +2085,12 @@ export default class extends Controller {
 
       // Show delete confirmation
       const confirmed = confirm(
-        `Delete area "${area.name}"?\n\nThis action cannot be undone.`,
+        translate("areas.confirm_delete_named", { name: area.name }),
       )
 
       if (!confirmed) return
 
-      Toast.info("Deleting area...")
+      Toast.info(translate("messages.deleting_area"))
 
       // Delete the area
       await this.api.deleteArea(areaId)
@@ -2133,9 +2107,9 @@ export default class extends Controller {
       // Close info display
       this.closeInfo()
 
-      Toast.success("Area deleted successfully")
+      Toast.success(translate("messages.area_deleted_successfully"))
     } catch (_error) {
-      Toast.error("Failed to delete area")
+      Toast.error(translate("messages.failed_to_delete_area"))
     }
   }
 
@@ -2165,7 +2139,7 @@ export default class extends Controller {
       })
       document.dispatchEvent(event)
     } catch (_error) {
-      Toast.error("Failed to load place details")
+      Toast.error(translate("messages.failed_to_load_place_details"))
     }
   }
 
@@ -2316,11 +2290,11 @@ export default class extends Controller {
     if (playing) {
       playIcon.classList.add("hidden")
       pauseIcon.classList.remove("hidden")
-      label.textContent = "Pause"
+      label.textContent = translate("replay.pause")
     } else {
       playIcon.classList.remove("hidden")
       pauseIcon.classList.add("hidden")
-      label.textContent = "Replay"
+      label.textContent = translate("replay.replay")
     }
   }
 
