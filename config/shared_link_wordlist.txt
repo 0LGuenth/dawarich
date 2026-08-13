@@ -1283,6 +1283,7 @@ year
 yeast
 yelp
 yield
+yo-yo
 yodel
 yoga
 yoyo
