@@ -49,7 +49,7 @@ class Families::Locations
   end
 
   def latest_location(membership)
-    point = membership.user.points.order(timestamp: :desc).first
+    point = membership.user.points.complete.order(timestamp: :desc).first
     return nil unless point
 
     {
@@ -58,8 +58,8 @@ class Families::Locations
       email_initial: membership.user.email.first.upcase,
       latitude: point.lat,
       longitude: point.lon,
-      timestamp: point.timestamp.to_i,
-      updated_at: Time.zone.at(point.timestamp.to_i),
+      timestamp: point.timestamp,
+      updated_at: Time.zone.at(point.timestamp),
       battery: point.battery,
       battery_status: point.battery_status
     }
