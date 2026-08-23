@@ -71,6 +71,22 @@ RSpec.describe Families::Locations do
       expect(described_class.new(user).call).to eq([])
     end
 
+    # A point with a NULL timestamp sorts NULLS FIRST under ORDER BY timestamp
+    # DESC and used to render "Last seen: Jan 1, 1970" on the map.
+    it 'ignores points with a nil timestamp when picking the latest' do
+      fam = create(:family)
+      create(:family_membership, user: user, family: fam)
+      sharer = create(:user)
+      enable_sharing(create(:family_membership, user: sharer, family: fam))
+      real_point = create(:point, user: sharer, timestamp: 1.hour.ago.to_i)
+      create(:point, user: sharer, timestamp: 1.minute.ago.to_i).update_column(:timestamp, nil)
+
+      groups = described_class.new(user).call
+      member = groups.first[:members].first
+      expect(member[:timestamp]).to eq(real_point.timestamp)
+      expect(member[:updated_at]).to eq(Time.zone.at(real_point.timestamp))
+    end
+
     context 'when the caller is a cloud user without the family plan' do
       before { allow(DawarichSettings).to receive(:family_feature_available_for?).and_return(false) }
 
