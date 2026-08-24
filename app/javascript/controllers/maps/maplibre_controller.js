@@ -1730,13 +1730,16 @@ export default class extends Controller {
   buildFamilyMemberRow(location) {
     const emailInitial = location.email?.charAt(0)?.toUpperCase() || "?"
     const color = this.getFamilyMemberColor(location.user_id)
-    const lastSeen = new Date(location.updated_at).toLocaleString(document.documentElement.lang || undefined, {
-      timeZone: this.timezoneValue || "UTC",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    })
+    const lastSeen = new Date(location.updated_at).toLocaleString(
+      document.documentElement.lang || undefined,
+      {
+        timeZone: this.timezoneValue || "UTC",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      },
+    )
 
     const row = document.createElement("div")
     row.className =
