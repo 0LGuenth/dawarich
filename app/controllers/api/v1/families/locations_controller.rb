@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
-class Api::V1::Families::LocationsController < ApiController
-  before_action :ensure_family_feature_available!
-  before_action :ensure_user_in_family!
-
+class Api::V1::Families::LocationsController < Api::V1::Families::BaseController
   def index
     groups = Families::Locations.new(current_api_user).call
 
@@ -43,13 +40,6 @@ class Api::V1::Families::LocationsController < ApiController
   end
 
   private
-
-  def ensure_user_in_family!
-    return if current_api_user&.in_family?
-
-    render json: { error: I18n.t('controllers.api.v1.families.locations.user_is_not_part_of_a_family') },
-           status: :not_found
-  end
 
   # One entry per user_id across all groups, keeping the most recent point.
   def dedupe_members(groups)

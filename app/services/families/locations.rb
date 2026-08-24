@@ -56,6 +56,8 @@ class Families::Locations
       user_id: membership.user_id,
       email: membership.user.email,
       email_initial: membership.user.email.first.upcase,
+      family_id: membership.family_id,
+      family_name: membership.family.name,
       latitude: point.lat,
       longitude: point.lon,
       timestamp: point.timestamp,
@@ -76,6 +78,8 @@ class Families::Locations
       user_id: membership.user_id,
       email: membership.user.email,
       email_initial: membership.user.email.first.upcase,
+      family_id: membership.family_id,
+      family_name: membership.family.name,
       sharing_since: membership.sharing_started_at&.iso8601,
       # Read coordinates from the PostGIS lonlat geometry.
       # Order stays [lat, lon, ts] for the frontend.

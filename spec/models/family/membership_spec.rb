@@ -156,6 +156,18 @@ RSpec.describe Family::Membership, type: :model do
       expect(membership.sharing_active?).to be(false)
     end
 
+    it 'resets started_at when re-enabled after being disabled' do
+      membership.update_sharing!(true, duration: 'permanent')
+      first_start = membership.sharing_started_at
+
+      membership.update_sharing!(false)
+      expect(membership.sharing_started_at).to be_nil
+
+      membership.update_sharing!(true)
+      expect(membership.sharing_started_at).to be_present
+      expect(membership.sharing_started_at).to be >= first_start
+    end
+
     it 'sharing is independent per family' do
       other = create(:family_membership, user: user)
       membership.update_sharing!(true, duration: 'permanent')
