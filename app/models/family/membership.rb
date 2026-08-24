@@ -37,10 +37,15 @@ class Family::Membership < ApplicationRecord
       self.share_history = share_history unless share_history.nil?
       self.history_window = validate_history_window(history_window) if history_window.present?
 
-      apply_duration(duration) if duration.present?
+      if duration.present?
+        apply_duration(duration)
+      elsif sharing_duration.present?
+        self.sharing_expires_at = carried_sharing_expiry
+      end
     else
       self.sharing_enabled = false
       self.sharing_expires_at = nil
+      self.sharing_started_at = nil
     end
 
     save!
@@ -108,14 +113,27 @@ class Family::Membership < ApplicationRecord
 
   def apply_duration(duration)
     self.sharing_duration = duration
-    self.sharing_expires_at = case duration
-                              when '1h' then 1.hour.from_now
-                              when '6h' then 6.hours.from_now
-                              when '12h' then 12.hours.from_now
-                              when '24h' then 24.hours.from_now
-                              when 'permanent' then nil
-                              else duration.to_i.positive? ? duration.to_i.hours.from_now : nil
-                              end
+    self.sharing_expires_at = expiry_for(duration)
+  end
+
+  def expiry_for(duration)
+    case duration
+    when '1h' then 1.hour.from_now
+    when '6h' then 6.hours.from_now
+    when '12h' then 12.hours.from_now
+    when '24h' then 24.hours.from_now
+    when 'permanent' then nil
+    else duration.to_i.positive? ? duration.to_i.hours.from_now : nil
+    end
+  end
+
+  # Re-enabling without an explicit duration keeps a still-active expiry,
+  # but an already-lapsed one is re-armed from the preserved duration.
+  def carried_sharing_expiry
+    return nil if sharing_expires_at.blank?
+    return sharing_expires_at if sharing_expires_at.future?
+
+    expiry_for(sharing_duration)
   end
 
   def validate_history_window(window)
