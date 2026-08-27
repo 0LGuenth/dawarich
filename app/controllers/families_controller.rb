@@ -10,7 +10,7 @@ class FamiliesController < ApplicationController
   before_action :set_family, only: %i[show edit update destroy]
 
   def index
-    @families = current_user.families.includes(:family_memberships)
+    @families = current_user.families.includes(:family_memberships).order(:name)
   end
 
   def show

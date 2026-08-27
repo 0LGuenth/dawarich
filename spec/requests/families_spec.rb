@@ -317,6 +317,22 @@ RSpec.describe 'Family', type: :request do
       expect(response).to have_http_status(:ok)
       expect(response.body).to include('Ski Group').and include('Poker Group')
     end
+
+    it 'orders families alphabetically by name' do
+      fam_z = create(:family, name: 'Zebra Family')
+      fam_a = create(:family, name: 'Alpha Family')
+      fam_m = create(:family, name: 'Midnight Family')
+      [fam_z, fam_a, fam_m].each do |fam|
+        create(:family_membership, user: user, family: fam)
+      end
+
+      get families_path
+
+      expect(response).to have_http_status(:ok)
+      body = response.body
+      expect(body.index('Alpha Family')).to be < body.index('Midnight Family')
+      expect(body.index('Midnight Family')).to be < body.index('Zebra Family')
+    end
   end
 
   describe 'GET /families/:id (show)' do
