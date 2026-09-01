@@ -9,11 +9,11 @@ class Families::Locations
     @user = user
   end
 
-  def call
+  def call(excluding: nil)
     return [] unless available?
 
     sharing_groups do |family, memberships|
-      members = memberships.filter_map { |m| latest_location(m) }
+      members = memberships.filter_map { |m| latest_location(m) unless m.user_id == excluding }
       next if members.empty?
 
       { family_id: family.id, family_name: family.name, members: members }
@@ -49,7 +49,7 @@ class Families::Locations
   end
 
   def latest_location(membership)
-    point = membership.user.points.complete.order(timestamp: :desc).first
+    point = membership.user.points.without_raw_data.complete.order(timestamp: :desc).first
     return nil unless point
 
     {
