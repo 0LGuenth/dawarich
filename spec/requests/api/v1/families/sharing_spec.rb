@@ -36,6 +36,19 @@ RSpec.describe 'Api::V1::Families::Sharing', type: :request do
       expect(membership.reload.sharing_active?).to be false
     end
 
+    it 'updates all memberships when the user belongs to multiple families' do
+      other_family = create(:family, creator: user)
+      other_membership = create(:family_membership, user: user, family: other_family, role: :owner)
+
+      patch '/api/v1/families/sharing',
+            params: { enabled: true, duration: 'permanent' },
+            headers: { 'Authorization' => "Bearer #{user.api_key}" }
+
+      expect(response).to have_http_status(:ok)
+      expect(membership.reload.sharing_active?).to be true
+      expect(other_membership.reload.sharing_active?).to be true
+    end
+
     it 'allows a lite-plan family member to update sharing under cloud entitlements' do
       allow(DawarichSettings).to receive(:self_hosted?).and_return(false)
       owner = create(:user, plan: :family, skip_auto_trial: true)

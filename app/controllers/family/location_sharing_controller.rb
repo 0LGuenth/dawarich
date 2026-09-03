@@ -32,6 +32,15 @@ class Family::LocationSharingController < ApplicationController
             partial: 'families/navbar_indicator',
             locals: { user: current_user }
           ),
+          turbo_stream.replace(
+            'family-getting-started-slot',
+            partial: 'families/getting_started',
+            locals: {
+              family: @family,
+              user: current_user,
+              pending_invitations: @family.active_invitations
+            }
+          ),
           stream_flash(result.success? ? :success : :error, result.payload[:message])
         ]
         render turbo_stream: streams

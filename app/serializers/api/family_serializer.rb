@@ -9,6 +9,7 @@ class Api::FamilySerializer
   # the user's families are intermixed and tagged with their family.
   def call
     {
+      lapsed: false,
       family: { name: active_family.name },
       me: me_payload,
       members: members_payload,
@@ -51,7 +52,7 @@ class Api::FamilySerializer
   end
 
   def members_payload
-    user.family_memberships.includes(:family).order(created_at: :desc).flat_map do |membership|
+    members = user.family_memberships.includes(:family).order(created_at: :desc).flat_map do |membership|
       membership.family.members.includes(:family_memberships).map do |member|
         member_membership = member.membership_for(membership.family)
         {
@@ -61,11 +62,22 @@ class Api::FamilySerializer
           family_id: membership.family.id,
           family_name: membership.family.name,
           owner: member.owner_of?(membership.family),
-          sharing_enabled: member_membership.sharing_active?,
-          joined_at: member_membership.created_at.iso8601
+          sharing_enabled: member_membership&.sharing_active? || false,
+          joined_at: member_membership&.created_at&.iso8601
         }
       end
     end
+
+    dedupe_members(members)
+  end
+
+  # Deduplicate by user_id to present one consolidated member list.
+  def dedupe_members(members)
+    members
+      .group_by { |m| m[:user_id] }
+      .map do |_id, entries|
+        entries.max_by { |e| [e[:sharing_enabled] ? 1 : 0, e[:family_id] == active_family&.id ? 1 : 0] }
+      end
   end
 
   # Avatar initial carries the family when the user is in several families.

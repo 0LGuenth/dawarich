@@ -145,6 +145,8 @@ class Family::Membership < ApplicationRecord
   end
 
   def cleanup_on_departure
+    revoke_inherited_subscription
+
     # Expire pending location requests for this family involving the departing user
     Family::LocationRequest
       .pending
@@ -153,5 +155,18 @@ class Family::Membership < ApplicationRecord
       .update_all(status: Family::LocationRequest.statuses[:expired], updated_at: Time.current)
   rescue StandardError => e
     ExceptionReporter.call(e, "Error cleaning up on family departure: #{e.message}")
+  end
+
+  def revoke_inherited_subscription
+    return if DawarichSettings.self_hosted?
+    return if owner?
+    return unless user.sub_source_none?
+    return if other_active_family_access?
+
+    user.update!(plan: :lite, status: :inactive, active_until: nil)
+  end
+
+  def other_active_family_access?
+    user.families.where.not(id: family_id).any?(&:access_live?)
   end
 end

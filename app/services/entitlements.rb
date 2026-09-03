@@ -20,6 +20,8 @@ class Entitlements
     return false unless @user.in_family?
 
     @user.families.any? do |family|
+      next true if family.access_until&.future?
+
       owner = family.owner
       owner&.family? && (owner.active_until&.future? || false)
     end
