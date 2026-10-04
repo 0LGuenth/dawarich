@@ -43,6 +43,25 @@ RSpec.describe 'Api::V1::Families::Locations', type: :request do
       expect(response.parsed_body['sharing_enabled']).to be true
     end
 
+    it 'excludes the requesting user location even when sharing is enabled' do
+      user = create(:user)
+      other_user = create(:user)
+      family = create(:family)
+      user_m = create(:family_membership, user: user, family: family)
+      other_m = create(:family_membership, user: other_user, family: family)
+      user_m.update_sharing!(true, duration: 'permanent')
+      other_m.update_sharing!(true, duration: 'permanent')
+      create(:point, user: user, timestamp: 1.hour.ago.to_i)
+      create(:point, user: other_user, timestamp: 2.hours.ago.to_i)
+
+      get '/api/v1/families/locations', headers: { 'Authorization' => "Bearer #{user.api_key}" }
+
+      json_response = response.parsed_body
+      user_ids = json_response['locations'].map { |l| l['user_id'] }
+      expect(user_ids).not_to include(user.id)
+      expect(user_ids).to include(other_user.id)
+    end
+
     context 'without API key' do
       it 'returns unauthorized' do
         get '/api/v1/families/locations'

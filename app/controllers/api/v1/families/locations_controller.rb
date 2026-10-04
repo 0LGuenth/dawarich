@@ -2,7 +2,7 @@
 
 class Api::V1::Families::LocationsController < Api::V1::Families::BaseController
   def index
-    groups = Families::Locations.new(current_api_user).call
+    groups = Families::Locations.new(current_api_user).call(excluding: current_api_user.id)
 
     render json: {
       locations: dedupe_members(groups),
@@ -31,7 +31,8 @@ class Api::V1::Families::LocationsController < Api::V1::Families::BaseController
 
     grouped = Families::Locations.new(current_api_user).history(
       start_at: parsed_start,
-      end_at: parsed_end
+      end_at: parsed_end,
+      excluding: current_api_user.id
     )
 
     render json: { members: dedupe_history(grouped) }

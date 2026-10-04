@@ -6,7 +6,11 @@ class FamilyLocationsChannel < ApplicationCable::Channel
     return reject unless DawarichSettings.family_feature_available_for?(current_user)
     return reject unless current_user.in_family?
 
-    current_user.families.each { |family| stream_for family }
+    current_user.families.each do |family|
+      stream_for family, coder: ActiveSupport::JSON do |location|
+        transmit location unless location['user_id'].to_s == current_user.id.to_s
+      end
+    end
   end
 
   def unsubscribed

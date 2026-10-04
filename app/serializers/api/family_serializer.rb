@@ -62,6 +62,7 @@ class Api::FamilySerializer
         {
           user_id: member.id,
           email: member.email,
+          name: member.display_name,
           email_initial: prefixed_initial(membership.family, member),
           family_id: membership.family.id,
           family_name: membership.family.name,

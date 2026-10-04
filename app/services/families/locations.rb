@@ -25,11 +25,15 @@ class Families::Locations
     end
   end
 
-  def history(start_at:, end_at:)
+  def history(start_at:, end_at:, excluding: nil)
     return [] unless available?
 
     sharing_groups do |family, memberships|
-      members = memberships.filter_map { |m| history_for(m, start_at: start_at, end_at: end_at) }
+      members = memberships.filter_map do |m|
+        next if m.user_id == excluding
+
+        history_for(m, start_at: start_at, end_at: end_at)
+      end
       next if members.empty?
 
       {
@@ -64,6 +68,7 @@ class Families::Locations
     {
       user_id: membership.user_id,
       email: membership.user.email,
+      name: membership.user.display_name,
       email_initial: membership.user.email.first.upcase,
       family_id: membership.family_id,
       family_name: membership.family.name,
@@ -86,6 +91,7 @@ class Families::Locations
     {
       user_id: membership.user_id,
       email: membership.user.email,
+      name: membership.user.display_name,
       email_initial: membership.user.email.first.upcase,
       family_id: membership.family_id,
       family_name: membership.family.name,

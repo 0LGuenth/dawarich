@@ -260,7 +260,7 @@ RSpec.describe 'Users::Registrations', type: :request do
           }
         end.to change(User, :count).by(1)
 
-        expect(response).to redirect_to(family_path)
+        expect(response).to redirect_to(family_path(family))
       end
 
       it 'prevents account creation for a different email' do

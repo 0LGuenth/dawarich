@@ -61,6 +61,18 @@ RSpec.describe Families::Locations do
       expect(groups.first[:members].map { |x| x[:user_id] }).to contain_exactly(sharer.id)
     end
 
+    it 'uses profile names for the location and history payloads' do
+      fam = create(:family)
+      create(:family_membership, user: user, family: fam)
+      sharer = create(:user, first_name: 'Ada', last_name: 'Lovelace')
+      enable_sharing(create(:family_membership, user: sharer, family: fam), share_history: true, history_window: 'all')
+      create(:point, user: sharer, timestamp: 1.hour.ago.to_i)
+
+      expect(described_class.new(user).call.first[:members].first[:name]).to eq('Ada Lovelace')
+      history = described_class.new(user).history(start_at: 2.hours.ago, end_at: Time.current)
+      expect(history.first[:members].first[:name]).to eq('Ada Lovelace')
+    end
+
     it 'returns a group per family the user belongs to' do
       fam_a = create(:family)
       fam_b = create(:family)

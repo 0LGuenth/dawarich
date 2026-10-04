@@ -88,10 +88,23 @@ class Point < ApplicationRecord
     @recorded_at ||= Time.zone.at(timestamp)
   end
 
-  GEOCODE_DEDUP_TTL = 1.day.to_i
+  GEOCODE_CLAIM_SCRIPT = <<~LUA
+    if redis.call('SET', KEYS[1], '1', 'NX') then return 1 end
+    redis.call('PERSIST', KEYS[1])
+    return 0
+  LUA
 
   def self.geocode_dedup_key(id)
     "geocode:enq:Point:#{id}"
+  end
+
+  def self.claim_geocode_ids(ids)
+    results = Sidekiq.redis do |redis|
+      redis.pipelined do |pipe|
+        ids.each { |id| pipe.call('EVAL', GEOCODE_CLAIM_SCRIPT, 1, geocode_dedup_key(id)) }
+      end
+    end
+    ids.zip(results).filter_map { |id, claimed| id if claimed == 1 }
   end
 
   def async_reverse_geocode(force: false, config: nil)
@@ -100,11 +113,8 @@ class Point < ApplicationRecord
 
     if force
       Sidekiq.redis { |r| r.del(self.class.geocode_dedup_key(id)) }
-    else
-      claimed = Sidekiq.redis do |r|
-        r.set(self.class.geocode_dedup_key(id), 1, nx: true, ex: GEOCODE_DEDUP_TTL)
-      end
-      return unless claimed
+    elsif self.class.claim_geocode_ids([id]).empty?
+      return
     end
 
     begin
@@ -179,6 +189,30 @@ class Point < ApplicationRecord
         country_name.to_s
       ]
     )
+    broadcast_to_family if should_broadcast_to_family?
+  end
+
+  def should_broadcast_to_family?
+    return false unless user.family_sharing_enabled?
+
+    DawarichSettings.family_feature_available_for?(user)
+  end
+
+  def broadcast_to_family
+    payload = {
+      user_id: user.id,
+      email: user.email,
+      name: user.display_name,
+      email_initial: user.email.first.upcase,
+      latitude: lat,
+      longitude: lon,
+      timestamp: timestamp.to_i,
+      updated_at: Time.zone.at(timestamp.to_i).iso8601
+    }
+
+    user.family_memberships.select(&:sharing_active?).each do |membership|
+      FamilyLocationsChannel.broadcast_to(membership.family, payload)
+    end
   end
 
   def set_country

@@ -1742,7 +1742,8 @@ export default class extends Controller {
   }
 
   buildFamilyMemberRow(location) {
-    const emailInitial = location.email?.charAt(0)?.toUpperCase() || "?"
+    const emailInitial =
+      (location.name || location.email)?.charAt(0)?.toUpperCase() || "?"
     const color = this.getFamilyMemberColor(location.user_id)
     const lastSeen = new Date(location.updated_at).toLocaleString(
       document.documentElement.lang || undefined,
@@ -1782,7 +1783,8 @@ export default class extends Controller {
 
     const emailDiv = document.createElement("div")
     emailDiv.className = "text-sm font-medium truncate"
-    emailDiv.textContent = location.email || translate("common.unknown")
+    emailDiv.textContent =
+      location.name || location.email || translate("common.unknown")
 
     const timeDiv = document.createElement("div")
     timeDiv.className = "text-xs text-base-content/60"
