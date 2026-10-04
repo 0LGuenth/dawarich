@@ -10,7 +10,8 @@ class Api::FamilySerializer
   def call
     {
       lapsed: false,
-      family: { name: active_family.name },
+      history_before_sharing_supported: true,
+      family: { name: active_family&.name },
       me: me_payload,
       members: members_payload,
       location_requests: {
@@ -29,24 +30,25 @@ class Api::FamilySerializer
   attr_reader :user
 
   def active_family
-    @active_family ||= user.family_memberships.order(created_at: :desc).first.family
+    @active_family ||= user.family_memberships.order(created_at: :desc).first&.family
   end
 
   def active_membership
-    @active_membership ||= user.membership_for(active_family)
+    @active_membership ||= user.membership_for(active_family) if active_family
   end
 
   def me_payload
     {
       user_id: user.id,
-      owner: active_membership.owner?,
+      owner: active_membership&.owner? || false,
       sharing: {
-        enabled: active_membership.sharing_active?,
-        duration: active_membership.sharing_duration_label,
-        expires_at: active_membership.sharing_expires_at&.iso8601,
-        started_at: active_membership.sharing_started_at&.iso8601,
-        share_history: active_membership.share_history?,
-        history_window: active_membership.history_window
+        enabled: active_membership&.sharing_active? || false,
+        duration: active_membership&.sharing_duration_label || user.family_sharing_duration,
+        expires_at: active_membership&.sharing_expires_at&.iso8601,
+        started_at: active_membership&.sharing_started_at&.iso8601,
+        share_history: active_membership&.share_history? || false,
+        history_window: active_membership&.history_window || user.family_history_window,
+        history_before_sharing: user.family_history_before_sharing?
       }
     }
   end
@@ -55,6 +57,8 @@ class Api::FamilySerializer
     members = user.family_memberships.includes(:family).order(created_at: :desc).flat_map do |membership|
       membership.family.members.includes(:family_memberships).map do |member|
         member_membership = member.membership_for(membership.family)
+        sharing_active = member_membership&.sharing_active? || false
+        history_shared = sharing_active && (member_membership&.share_history? || false)
         {
           user_id: member.id,
           email: member.email,
@@ -62,7 +66,11 @@ class Api::FamilySerializer
           family_id: membership.family.id,
           family_name: membership.family.name,
           owner: member.owner_of?(membership.family),
-          sharing_enabled: member_membership&.sharing_active? || false,
+          sharing_enabled: sharing_active,
+          share_history: history_shared,
+          history_window: history_shared ? member_membership.history_window : nil,
+          history_before_sharing: member.family_history_before_sharing?,
+          sharing_started_at: member_membership&.sharing_started_at&.iso8601,
           joined_at: member_membership&.created_at&.iso8601
         }
       end
@@ -82,7 +90,7 @@ class Api::FamilySerializer
 
   # Avatar initial carries the family when the user is in several families.
   def prefixed_initial(family, member)
-    return member.email.first.upcase unless multi_family?
+    return member.email.first.upcase unless multi_family? && family&.name.present?
 
     "#{family.name.first}#{member.email.first}".upcase
   end

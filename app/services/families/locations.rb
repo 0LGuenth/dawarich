@@ -16,7 +16,12 @@ class Families::Locations
       members = memberships.filter_map { |m| latest_location(m) unless m.user_id == excluding }
       next if members.empty?
 
-      { family_id: family.id, family_name: family.name, members: members }
+      {
+        family_id: family.id,
+        family_name: family.name,
+        members: members,
+        timestamp: members.first&.dig(:timestamp)
+      }
     end
   end
 
@@ -27,7 +32,12 @@ class Families::Locations
       members = memberships.filter_map { |m| history_for(m, start_at: start_at, end_at: end_at) }
       next if members.empty?
 
-      { family_id: family.id, family_name: family.name, members: members }
+      {
+        family_id: family.id,
+        family_name: family.name,
+        members: members,
+        points: members.first&.dig(:points)
+      }
     end
   end
 
@@ -37,8 +47,7 @@ class Families::Locations
     DawarichSettings.family_feature_available_for?(user) && user.in_family?
   end
 
-  # Yields [family, sharing_memberships] for each of the user's families that
-  # has at least one actively-sharing member. Compacts nil block results.
+  # Yields [family, sharing_memberships] for each family with active sharing.
   def sharing_groups
     user.families.includes(family_memberships: :user).filter_map do |family|
       memberships = family.family_memberships.select(&:sharing_active?)
@@ -49,7 +58,7 @@ class Families::Locations
   end
 
   def latest_location(membership)
-    point = membership.user.points.without_raw_data.complete.order(timestamp: :desc).first
+    point = membership.user.points.without_raw_data.complete.not_anomaly.order(timestamp: :desc).first
     return nil unless point
 
     {
@@ -81,8 +90,7 @@ class Families::Locations
       family_id: membership.family_id,
       family_name: membership.family.name,
       sharing_since: membership.sharing_started_at&.iso8601,
-      # Read coordinates from the PostGIS lonlat geometry.
-      # Order stays [lat, lon, ts] for the frontend.
+      # Coordinates read from PostGIS lonlat; format is [lat, lon, ts].
       points: sampled.pluck(
         Arel.sql('ST_Y(lonlat::geometry)'),
         Arel.sql('ST_X(lonlat::geometry)'),

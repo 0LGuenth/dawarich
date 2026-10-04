@@ -55,12 +55,11 @@ class Family::Membership < ApplicationRecord
     sharing_duration.presence || 'permanent'
   end
 
-  # Used by FamiliesController#show (per-member card) via &:latest_location.
-  # Distinct from Families::Locations#latest_location (map/API payload, includes battery).
   def latest_location
     return nil unless sharing_active?
 
-    latest_point = user.scoped_points.complete.select(:lonlat, :timestamp).order(timestamp: :desc).limit(1).first
+    latest_point = user.scoped_points.complete.not_anomaly
+                       .select(:lonlat, :timestamp).order(timestamp: :desc).limit(1).first
     return nil unless latest_point
 
     {
@@ -76,7 +75,7 @@ class Family::Membership < ApplicationRecord
   def history_points(start_at:, end_at:)
     return Point.none unless sharing_active?
     return Point.none unless share_history?
-    return Point.none unless sharing_started_at
+    return Point.none unless sharing_started_at || history_before_sharing?
 
     window_start = case history_window
                    when '24h' then 24.hours.ago
@@ -85,13 +84,32 @@ class Family::Membership < ApplicationRecord
                    else 7.days.ago
                    end
 
-    effective_start = [start_at, sharing_started_at, window_start].max
+    effective_start = [start_at, window_start]
+    effective_start << sharing_started_at unless history_before_sharing?
+    effective_start = effective_start.max
     return Point.none if effective_start >= end_at
 
     user.scoped_points
         .complete
+        .not_anomaly
         .where('timestamp >= ? AND timestamp <= ?', effective_start.to_i, end_at.to_i)
         .order(timestamp: :asc)
+  end
+
+  def history_before_sharing?
+    user&.family_history_before_sharing? || false
+  end
+
+  def sharing_started_at
+    setting_started_at = user&.settings&.dig('family', 'location_sharing', 'started_at')
+    if setting_started_at.present?
+      begin
+        return Time.zone.parse(setting_started_at)
+      rescue ArgumentError
+        nil
+      end
+    end
+    super
   end
 
   private

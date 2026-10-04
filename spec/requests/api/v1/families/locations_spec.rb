@@ -82,7 +82,7 @@ RSpec.describe 'Api::V1::Families::Locations', type: :request do
     before do
       allow(DawarichSettings).to receive(:self_hosted?).and_return(false)
       allow(DawarichSettings).to receive(:family_feature_available_for?).and_call_original
-      user.update!(plan: :lite, status: :inactive, active_until: 1.day.ago)
+      user.update!(plan: :family, status: :inactive, active_until: 1.day.ago)
       family.update!(access_until: 1.day.ago)
     end
 

@@ -11,16 +11,26 @@ module Families
     end
 
     def call
-      return false unless can_accept?
+      return false unless validate_invitation && validate_email_match
 
-      ActiveRecord::Base.transaction do
-        create_membership
-        settle_new_member
-        update_invitation
-        send_notifications
+      accepted = false
+      family = invitation.family
+      family.with_lock do
+        # Keep subscription callbacks from changing period before settlement.
+        family.creator.with_lock do
+          family.refresh_access_until!(family.creator)
+          invitation.reload
+          if can_accept?
+            create_membership
+            settle_new_member
+            update_invitation
+            send_notifications
+            accepted = true
+          end
+        end
       end
 
-      true
+      accepted
     rescue ActiveRecord::RecordInvalid => e
       handle_record_invalid_error(e)
       false

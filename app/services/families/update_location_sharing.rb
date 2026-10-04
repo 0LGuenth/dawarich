@@ -3,16 +3,26 @@
 class Families::UpdateLocationSharing
   Result = Struct.new(:success?, :payload, :status, keyword_init: true)
 
-  def initialize(membership:, enabled:, duration:, share_history: nil, history_window: nil)
-    @membership = membership
+  def initialize(enabled:, membership: nil, user: nil, duration: nil, share_history: nil, history_window: nil,
+                 history_before_sharing: nil)
+    @membership = membership || user&.family_membership
+    @user = user || membership&.user
     @enabled_param = enabled
     @duration_param = duration
     @share_history_param = share_history
     @history_window_param = history_window
+    @history_before_sharing_param = history_before_sharing
     @boolean_caster = ActiveModel::Type::Boolean.new
   end
 
   def call
+    unless membership
+      return failure_result(
+        I18n.t('services.families.update_location_sharing.not_in_family', default: 'Not in a family'),
+        :not_found
+      )
+    end
+
     membership.update_sharing!(
       enabled?,
       duration: duration_param,
@@ -28,7 +38,8 @@ class Families::UpdateLocationSharing
 
   private
 
-  attr_reader :membership, :enabled_param, :duration_param, :share_history_param, :history_window_param, :boolean_caster
+  attr_reader :membership, :user, :enabled_param, :duration_param, :share_history_param, :history_window_param,
+              :history_before_sharing_param, :boolean_caster
 
   def enabled?
     @enabled ||= boolean_caster.cast(enabled_param)
@@ -44,7 +55,7 @@ class Families::UpdateLocationSharing
 
     if enabled? && membership.sharing_expires_at.present?
       payload[:expires_at] = membership.sharing_expires_at.iso8601
-      payload[:expires_at_formatted] = membership.sharing_expires_at.strftime('%b %d at %I:%M %p')
+      payload[:expires_at_formatted] = I18n.l(membership.sharing_expires_at, format: :short_with_time)
     end
 
     Result.new(success?: true, payload: payload, status: :ok)

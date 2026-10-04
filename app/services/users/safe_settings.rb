@@ -37,6 +37,15 @@ class Users::SafeSettings
     'airtrail_api_key' => nil,
     'airtrail_skip_ssl_verification' => false,
     'airtrail_last_synced_at' => nil,
+    'teslamate_url' => nil,
+    'teslamate_username' => nil,
+    'teslamate_password' => nil,
+    'teslamate_api_token' => nil,
+    'teslamate_skip_ssl_verification' => false,
+    'teslamate_last_synced_at' => nil,
+    'teslamate_last_synced_url' => nil,
+    'teslamate_processing_pending' => false,
+    'teslamate_processing_pending_url' => nil,
     'maps' => { 'distance_unit' => 'km' },
     'visits_suggestions_enabled' => 'true',
     'enabled_map_layers' => %w[Tracks Heatmap],
@@ -66,12 +75,13 @@ class Users::SafeSettings
     'visit_min_points' => 3,
     'visit_min_duration_minutes' => 5,
     'point_dragging_enabled' => false,
-    'points_tiled_rendering' => false
+    'points_tiled_rendering' => true
   }.freeze
 
   def initialize(settings = {}, plan: nil)
     settings = {} unless settings.is_a?(Hash)
 
+    @provided_settings = settings
     @settings = DEFAULT_VALUES.deep_dup.deep_merge(settings)
     @plan = plan
   end
@@ -79,16 +89,10 @@ class Users::SafeSettings
   def config
     {
       fog_of_war_meters: fog_of_war_meters,
-      meters_between_routes: meters_between_routes,
       preferred_map_layer: preferred_map_layer,
-      speed_colored_routes: speed_colored_routes,
-      points_rendering_mode: points_rendering_mode,
-      minutes_between_routes: minutes_between_routes,
       time_threshold_minutes: time_threshold_minutes,
       merge_threshold_minutes: merge_threshold_minutes,
       live_map_enabled: live_map_enabled,
-      route_opacity: route_opacity,
-      route_color: route_color,
       track_color: track_color,
       immich_url: immich_url,
       immich_api_key: immich_api_key,
@@ -99,10 +103,10 @@ class Users::SafeSettings
       maps: maps,
       distance_unit: distance_unit,
       visits_suggestions_enabled: visits_suggestions_enabled?,
-      speed_color_scale: speed_color_scale,
       fog_of_war_threshold: fog_of_war_threshold,
       fog_of_war_mode: fog_of_war_mode,
       enabled_map_layers: enabled_map_layers,
+      places_tag_filters: places_tag_filters,
       maps_maplibre_style: maps_maplibre_style,
       maps_maplibre_tiles_url: maps_maplibre_tiles_url,
       maps_maplibre_tiles_fallback: maps_maplibre_tiles_fallback?,
@@ -115,9 +119,23 @@ class Users::SafeSettings
       visit_radius_meters: visit_radius_meters,
       visit_min_points: visit_min_points,
       visit_min_duration_minutes: visit_min_duration_minutes,
-      point_dragging_enabled: point_dragging_enabled?,
-      points_tiled_rendering: points_tiled_rendering?
+      point_dragging_enabled: point_dragging_enabled?
     }
+  end
+
+  # Preserve the public API contract for clients that still synchronize
+  # classic-renderer settings, without exposing those settings to MapLibre.
+  def api_config
+    config.merge(
+      meters_between_routes: meters_between_routes,
+      speed_colored_routes: speed_colored_routes,
+      points_rendering_mode: points_rendering_mode,
+      minutes_between_routes: minutes_between_routes,
+      route_opacity: route_opacity,
+      route_color: route_color,
+      speed_color_scale: speed_color_scale,
+      points_tiled_rendering: points_tiled_rendering?
+    )
   end
 
   def fog_of_war_meters
@@ -125,7 +143,8 @@ class Users::SafeSettings
   end
 
   def meters_between_routes
-    settings['meters_between_routes']
+    meters = settings['meters_between_routes'].to_i
+    meters.positive? ? meters : DEFAULT_VALUES['meters_between_routes']
   end
 
   def preferred_map_layer
@@ -168,6 +187,9 @@ class Users::SafeSettings
   end
 
   def track_color
+    return settings['track_color'] if @provided_settings.key?('track_color')
+    return settings['route_color'] if Array(@provided_settings['enabled_map_layers']).include?('Routes')
+
     settings['track_color']
   end
 
@@ -207,6 +229,26 @@ class Users::SafeSettings
     ActiveModel::Type::Boolean.new.cast(settings['airtrail_skip_ssl_verification'])
   end
 
+  def teslamate_url
+    settings['teslamate_url']
+  end
+
+  def teslamate_username
+    settings['teslamate_username']
+  end
+
+  def teslamate_password
+    settings['teslamate_password']
+  end
+
+  def teslamate_api_token
+    settings['teslamate_api_token']
+  end
+
+  def teslamate_skip_ssl_verification
+    ActiveModel::Type::Boolean.new.cast(settings['teslamate_skip_ssl_verification'])
+  end
+
   def maps
     m = settings['maps']
     return m unless lite?
@@ -237,8 +279,18 @@ class Users::SafeSettings
   end
 
   def enabled_map_layers
-    layers = settings['enabled_map_layers']
+    layers = Array(settings['enabled_map_layers']).dup
+    layers << 'Tracks' if layers.include?('Routes')
+    layers.delete('Routes')
+    layers.uniq!
     lite? ? layers - GATED_MAP_LAYERS : layers
+  end
+
+  def places_tag_filters
+    filters = settings['places_tag_filters']
+    return if filters.nil?
+
+    Array(filters).map { |value| value == 'untagged' ? value : value.to_i }
   end
 
   def maps_maplibre_style
@@ -326,7 +378,7 @@ class Users::SafeSettings
   end
 
   def points_tiled_rendering?
-    ActiveModel::Type::Boolean.new.cast(settings['points_tiled_rendering']) || false
+    true
   end
 
   def visit_radius_meters

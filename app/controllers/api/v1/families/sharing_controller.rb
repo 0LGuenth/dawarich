@@ -7,13 +7,22 @@ class Api::V1::Families::SharingController < Api::V1::Families::BaseController
     memberships = target_memberships
     return render_not_in_family if memberships.empty?
 
+    current_api_user.update_family_location_sharing!(
+      params[:enabled],
+      duration: params[:duration],
+      share_history: params[:share_history],
+      history_window: params[:history_window],
+      history_before_sharing: params[:history_before_sharing]
+    )
+
     results = memberships.map do |membership|
       Families::UpdateLocationSharing.new(
         membership: membership,
         enabled: params[:enabled],
         duration: params[:duration],
         share_history: params[:share_history],
-        history_window: params[:history_window]
+        history_window: params[:history_window],
+        history_before_sharing: params[:history_before_sharing]
       ).call
     end
 
