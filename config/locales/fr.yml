@@ -2945,6 +2945,8 @@ fr:
       label: Famille
       link: Lien familial
       shared_trip: '%{trip} est partagé avec votre famille.'
+      shared_with_families: 'Partagé avec : %{families}'
+      select_families: Sélectionner les familles
       trips: Voyages partagés avec votre famille
       hint: Les voyages familiaux apparaissent dans la liste des voyages de votre famille. Les membres doivent se connecter. La phrase secrète sert uniquement aux liens publics.
       choose_audience: Choisissez qui peut voir ce voyage et les détails à inclure.

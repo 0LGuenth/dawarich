@@ -2111,6 +2111,8 @@ zh:
       label: 家庭
       link: 家庭链接
       shared_trip: '%{trip} 已与您的家庭共享。'
+      shared_with_families: '共享给：%{families}'
+      select_families: 选择家庭
       trips: 与您的家庭共享的行程
       hint: 家庭行程会显示在家庭的行程列表中。成员必须登录。密码短语仅用于公开链接。
       choose_audience: 选择谁可以查看此行程以及要包含哪些详情。

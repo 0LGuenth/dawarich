@@ -1,15 +1,32 @@
 <%# Trip create form. Locals: resource (the Trip), paths, close_path %>
 <%= form_with model: SharedLink.new, url: paths[:create], method: :post,
               data: { turbo_frame: "share-link-modal" } do |f| %>
-  <% if current_user.family&.access_live? %>
+  <% active_families = current_user.families.select(&:access_live?) %>
+  <% if active_families.any? %>
     <div class="form-control mb-4">
       <%= f.label :audience, t('shared_links.family.audience'), class: 'label-text mb-1' %>
       <%= f.select :audience, [[t('shared_links.family.public_link'), 'public'], [t('shared_links.family.only'), 'family']],
-                   {}, class: 'select select-bordered' %>
+                   {}, class: 'select select-bordered', data: { action: 'change->share-link-modal#toggleAudience' } %>
       <p class="text-sm text-base-content/70 mt-2"><%= t('shared_links.family.hint') %></p>
     </div>
+
+    <% if active_families.size > 1 %>
+      <div class="form-control mb-4 hidden" data-share-link-modal-target="familySection">
+        <span class="label-text font-semibold mb-2"><%= t('shared_links.family.select_families') %></span>
+        <div class="space-y-2 border border-base-300 rounded-lg p-3 bg-base-100 max-h-48 overflow-y-auto">
+          <% active_families.each do |family| %>
+            <label class="label cursor-pointer justify-start gap-3 py-1">
+              <%= check_box_tag 'shared_link[family_ids][]', family.id, true, class: 'checkbox checkbox-sm checkbox-primary' %>
+              <span class="label-text font-medium"><%= family.name %></span>
+            </label>
+          <% end %>
+        </div>
+      </div>
+    <% else %>
+      <%= hidden_field_tag 'shared_link[family_ids][]', active_families.first.id %>
+    <% end %>
   <% end %>
-  <div class="form-control">
+  <div class="form-control" data-share-link-modal-target="magicPhraseSection">
     <label class="label"><span class="label-text"><%= t('.magic_phrase_optional') %></span></label>
     <%= f.text_field :magic_phrase, class: 'input input-bordered', value: SharedLink::PhraseGenerator.call %>
     <span class="label-text-alt mt-1"><%= t('.leave_blank_to_share_without_a_phrase_or_use_the') %></span>
