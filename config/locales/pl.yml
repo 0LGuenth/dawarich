@@ -2083,6 +2083,8 @@ pl:
       label: Rodzina
       link: Link rodzinny
       shared_trip: '%{trip} jest udostępniana Twojej rodzinie.'
+      shared_with_families: 'Udostępniono dla: %{families}'
+      select_families: Wybierz rodziny
       trips: Podróże udostępnione Twojej rodzinie
       hint: Podróże rodzinne pojawiają się na liście podróży Twojej rodziny. Członkowie muszą się zalogować. Tajna fraza jest używana tylko w linkach publicznych.
       choose_audience: Wybierz, kto może zobaczyć tę podróż i jakie szczegóły uwzględnić.

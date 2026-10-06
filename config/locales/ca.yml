@@ -2083,6 +2083,8 @@ ca:
       label: Família
       link: Enllaç familiar
       shared_trip: '%{trip} es comparteix amb la teva família.'
+      shared_with_families: 'Compartit amb: %{families}'
+      select_families: Selecciona les famílies
       trips: Viatges compartits amb la teva família
       hint: Els viatges familiars apareixen a la llista de viatges de la teva família. Els membres han d’iniciar sessió. La frase secreta només s’utilitza per als enllaços públics.
       choose_audience: Tria qui pot veure aquest viatge i quins detalls incloure.
