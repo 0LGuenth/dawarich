@@ -8,7 +8,16 @@
 </div>
 
 <% if local_assigns[:subtitle].present? %>
-  <p class="text-sm text-base-content/70 mb-5"><%= share.family_only? ? t('shared_links.family.shared_trip', trip: share.resource&.name || share.name) : subtitle %></p>
+  <% if share.family_only? %>
+    <% target_families = Family.where(id: share.target_family_ids) %>
+    <p class="text-sm text-base-content/70 mb-5">
+      <%= t('shared_links.family.shared_with_families',
+            families: target_families.map(&:name).join(', '),
+            default: t('shared_links.family.shared_trip', trip: share.resource&.name || share.name)) %>
+    </p>
+  <% else %>
+    <p class="text-sm text-base-content/70 mb-5"><%= subtitle %></p>
+  <% end %>
 <% end %>
 
 <div class="space-y-4">

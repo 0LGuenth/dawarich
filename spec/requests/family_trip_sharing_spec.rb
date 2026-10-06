@@ -9,7 +9,7 @@ RSpec.describe 'Family trip sharing', type: :request do
   let(:trip) { create(:trip, user: owner, name: 'Family camper trip') }
   let(:link) do
     create(:shared_link, user: owner, resource_type: :trip, resource_id: trip.id,
-                         settings: { 'audience' => 'family', 'family_id' => family.id, 'show_route' => true })
+                         settings: { 'audience' => 'family', 'family_ids' => [family.id], 'show_route' => true })
   end
 
   before do
@@ -23,7 +23,7 @@ RSpec.describe 'Family trip sharing', type: :request do
     post trip_share_link_path(trip), params: { shared_link: { audience: 'family', magic_phrase: 'ignored' } }
 
     share = owner.shared_links.last
-    expect(share.settings).to include('audience' => 'family', 'family_id' => family.id)
+    expect(share.settings).to include('audience' => 'family', 'family_ids' => [family.id])
     expect(share.magic_phrase).to be_nil
   end
 
@@ -173,5 +173,67 @@ RSpec.describe 'Family trip sharing', type: :request do
     post export_trip_path(trip), params: { file_format: 'gpx' }
     expect(response).not_to have_http_status(:ok)
     expect(member.exports).to be_empty
+  end
+
+  context 'with multiple families' do
+    let(:second_family) { create(:family, creator: owner, name: 'Second Family') }
+    let(:second_member) { create(:user) }
+
+    before do
+      create(:family_membership, :owner, family: second_family, user: owner)
+      create(:family_membership, family: second_family, user: second_member)
+    end
+
+    it 'shares only with the selected family when owner belongs to multiple families' do
+      sign_in owner
+      post trip_share_link_path(trip), params: {
+        shared_link: { audience: 'family', family_ids: [family.id] }
+      }
+
+      share = owner.shared_links.last
+      expect(share.settings['family_ids']).to eq([family.id])
+
+      sign_in member
+      get trips_path
+      expect(response.body).to include('Family camper trip')
+
+      sign_in second_member
+      get trips_path
+      expect(response.body).not_to include('Family camper trip')
+      get public_shared_link_path(share)
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'shares with multiple selected families simultaneously' do
+      sign_in owner
+      post trip_share_link_path(trip), params: {
+        shared_link: { audience: 'family', family_ids: [family.id, second_family.id] }
+      }
+
+      share = owner.shared_links.last
+      expect(share.settings['family_ids']).to contain_exactly(family.id, second_family.id)
+
+      sign_in member
+      get trips_path
+      expect(response.body).to include('Family camper trip')
+
+      sign_in second_member
+      get trips_path
+      expect(response.body).to include('Family camper trip')
+      get public_shared_link_path(share)
+      expect(response).to have_http_status(:ok)
+    end
+
+    it 'sanitizes family_ids so users cannot share with families they do not belong to' do
+      unrelated_family = create(:family)
+      sign_in owner
+      post trip_share_link_path(trip), params: {
+        shared_link: { audience: 'family', family_ids: [unrelated_family.id] }
+      }
+
+      share = owner.shared_links.last
+      expect(share.settings['family_ids']).not_to include(unrelated_family.id)
+      expect(share.settings['family_ids']).to contain_exactly(family.id, second_family.id)
+    end
   end
 end

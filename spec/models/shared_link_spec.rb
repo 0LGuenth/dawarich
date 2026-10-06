@@ -155,4 +155,41 @@ RSpec.describe SharedLink, type: :model do
       expect(SharedLink.default_settings_for('timeline')).to eq(SharedLink::DEFAULT_SETTINGS[:timeline])
     end
   end
+
+  describe 'family audience' do
+    let(:owner) { create(:user) }
+    let(:family_a) { create(:family, creator: owner) }
+    let(:family_b) { create(:family, creator: owner) }
+    let(:member_a) { create(:user) }
+    let(:trip) { create(:trip, user: owner) }
+
+    before do
+      create(:family_membership, :owner, family: family_a, user: owner)
+      create(:family_membership, :owner, family: family_b, user: owner)
+      create(:family_membership, family: family_a, user: member_a)
+    end
+
+    describe '#target_family_ids' do
+      it 'extracts array of integer family IDs' do
+        link = build(:shared_link, settings: { 'family_ids' => [family_a.id, family_b.id] })
+        expect(link.target_family_ids).to contain_exactly(family_a.id, family_b.id)
+      end
+    end
+
+    describe '#accessible_to?' do
+      it 'returns true for a member of any target family' do
+        link = create(:shared_link, user: owner, resource_type: :trip, resource_id: trip.id,
+                                   settings: { 'audience' => 'family', 'family_ids' => [family_a.id, family_b.id] })
+        expect(link.accessible_to?(member_a)).to be(true)
+      end
+
+      it 'returns false for a user not in any target family' do
+        unrelated = create(:user)
+        link = create(:shared_link, user: owner, resource_type: :trip, resource_id: trip.id,
+                                   settings: { 'audience' => 'family', 'family_ids' => [family_b.id] })
+        expect(link.accessible_to?(unrelated)).to be(false)
+        expect(link.accessible_to?(member_a)).to be(false)
+      end
+    end
+  end
 end

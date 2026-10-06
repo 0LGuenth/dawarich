@@ -39,26 +39,43 @@ class SharedLink < ApplicationRecord
   }
 
   def self.family_trips_for(viewer)
-    family = viewer&.family
-    return none unless family&.access_live?
+    active_family_ids = viewer&.families&.select(&:access_live?)&.map(&:id)
+    return none if active_family_ids.blank?
 
-    active.where(resource_type: :trip, user_id: family.members.select(:id))
-          .where("settings ->> 'audience' = 'family' AND settings ->> 'family_id' = ?", family.id.to_s)
+    active.where(resource_type: :trip)
           .where.not(user_id: viewer.id)
+          .where("settings ->> 'audience' = 'family'")
+          .where(
+            'EXISTS (' \
+            '  SELECT 1 FROM family_memberships fm ' \
+            '  WHERE fm.user_id = shared_links.user_id ' \
+            '    AND fm.family_id IN (:ids) ' \
+            "    AND jsonb_typeof(shared_links.settings -> 'family_ids') = 'array' " \
+            "    AND shared_links.settings -> 'family_ids' @> to_jsonb(fm.family_id)" \
+            ')',
+            ids: active_family_ids
+          )
   end
 
   def family_only?
     settings['audience'] == 'family'
   end
 
+  def target_family_ids
+    Array(settings['family_ids']).map(&:to_i).reject(&:zero?)
+  end
+
   def accessible_to?(viewer)
     return true unless family_only?
     return false unless viewer
 
-    family = user&.family
-    return false unless family&.access_live? && family.id.to_s == settings['family_id'].to_s
+    target_ids = target_family_ids
+    return false if target_ids.empty?
 
-    family.family_memberships.exists?(user_id: viewer.id)
+    matching_family_ids = user.families.where(id: target_ids).pluck(:id)
+    return false if matching_family_ids.empty?
+
+    viewer.families.where(id: matching_family_ids).any?(&:access_live?)
   end
 
   def resource
@@ -90,7 +107,10 @@ class SharedLink < ApplicationRecord
 
   def valid_family_audience
     return unless family_only?
-    return if trip? && user&.family&.access_live? && user.family.id.to_s == settings['family_id'].to_s
+
+    target_ids = target_family_ids
+    valid = trip? && target_ids.present? && user.families.where(id: target_ids).any?(&:access_live?)
+    return if valid
 
     errors.add(:base, I18n.t('shared_links.family.unavailable'))
   end

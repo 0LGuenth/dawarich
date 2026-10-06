@@ -2083,6 +2083,8 @@ en:
       label: Family
       link: Family link
       shared_trip: '%{trip} is shared with your family.'
+      shared_with_families: 'Shared with: %{families}'
+      select_families: Select families
       trips: Trips shared with your family
       hint: Family trips appear in your family's trip list. Members must sign in. The magic phrase is only used for public links.
       choose_audience: Choose who can view this trip and which details to include.

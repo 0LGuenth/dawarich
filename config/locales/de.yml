@@ -2088,6 +2088,8 @@ de:
       label: Familie
       link: Familienlink
       shared_trip: '%{trip} wird mit deiner Familie geteilt.'
+      shared_with_families: 'Geteilt mit: %{families}'
+      select_families: Familien auswählen
       trips: Mit deiner Familie geteilte Reisen
       hint: Familienreisen erscheinen in der Reiseliste deiner Familie. Mitglieder müssen sich anmelden. Die Geheimphrase wird nur für öffentliche Links verwendet.
       choose_audience: Wähle, wer diese Reise ansehen kann und welche Details angezeigt werden.

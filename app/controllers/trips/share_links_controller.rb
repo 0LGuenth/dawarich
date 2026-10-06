@@ -47,7 +47,7 @@ module Trips
     end
 
     def create_params
-      params.fetch(:shared_link, {}).permit(:name, :magic_phrase, :expires_at, :audience)
+      params.fetch(:shared_link, {}).permit(:name, :magic_phrase, :expires_at, :audience, family_ids: [])
     end
 
     def family_share?
@@ -57,7 +57,11 @@ module Trips
     def audience_settings
       return {} unless family_share?
 
-      { 'audience' => 'family', 'family_id' => current_user.family&.id }
+      selected_ids = Array(create_params[:family_ids]).map(&:to_i).reject(&:zero?)
+      valid_ids = current_user.families.where(id: selected_ids).pluck(:id)
+      valid_ids = current_user.families.select(&:access_live?).map(&:id) if valid_ids.empty?
+
+      { 'audience' => 'family', 'family_ids' => valid_ids }
     end
   end
 end
