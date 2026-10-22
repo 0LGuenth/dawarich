@@ -65,6 +65,7 @@ class Family::Membership < ApplicationRecord
     {
       user_id: user.id,
       email: user.email,
+      name: user.display_name,
       latitude: latest_point.lat,
       longitude: latest_point.lon,
       timestamp: latest_point.timestamp,

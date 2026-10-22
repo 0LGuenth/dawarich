@@ -103,7 +103,7 @@ RSpec.describe 'Family access on cloud', type: :request do
     it 'is not shown the family link in the navbar' do
       sign_in non_subscriber
 
-      get stats_path
+      get insights_path
 
       expect(response).to have_http_status(:ok)
       expect(response.body).not_to include(new_family_path)
@@ -214,7 +214,7 @@ RSpec.describe 'Family access on cloud', type: :request do
       owner.update!(plan: :pro)
       sign_in member
 
-      get stats_path
+      get insights_path
 
       expect(response).to have_http_status(:ok)
       # family_home_path is a controller helper returning families_path.

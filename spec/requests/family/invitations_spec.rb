@@ -52,7 +52,7 @@ RSpec.describe 'Family::Invitations', type: :request do
       it 'redirects with error message' do
         get "/invitations/#{invitation.token}"
         expect(response).to redirect_to(root_path)
-        follow_redirect!
+        follow_redirect! while response.redirect?
         expect(response.body).to include('This invitation has expired')
       end
     end
@@ -63,7 +63,7 @@ RSpec.describe 'Family::Invitations', type: :request do
       it 'redirects with error message' do
         get "/invitations/#{invitation.token}"
         expect(response).to redirect_to(root_path)
-        follow_redirect!
+        follow_redirect! while response.redirect?
         expect(response.body).to include('This invitation is no longer valid')
       end
     end
@@ -93,7 +93,8 @@ RSpec.describe 'Family::Invitations', type: :request do
       it 'redirects with success message' do
         post family_invitations_path(family), params: valid_params
         expect(response).to redirect_to(family_path(family))
-        expect(flash[:notice]).to include('Invitation sent successfully!')
+        follow_redirect! while response.redirect?
+        expect(response.body).to include('Invitation sent successfully!')
       end
     end
 
@@ -113,7 +114,8 @@ RSpec.describe 'Family::Invitations', type: :request do
         invitation # create the existing invitation
         post family_invitations_path(family), params: duplicate_params
         expect(response).to redirect_to(family_path(family))
-        expect(flash[:alert]).to include('Invitation already sent to this email')
+        follow_redirect! while response.redirect?
+        expect(response.body).to include('Invitation already sent to this email')
       end
     end
 
@@ -166,7 +168,8 @@ RSpec.describe 'Family::Invitations', type: :request do
     it 'redirects with success message' do
       delete family_invitation_path(family, invitation.token)
       expect(response).to redirect_to(family_path(family))
-      expect(flash[:notice]).to include('Invitation cancelled')
+      follow_redirect! while response.redirect?
+      expect(response.body).to include('Invitation cancelled')
     end
 
     context 'when user is not the owner' do

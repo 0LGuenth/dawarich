@@ -99,7 +99,7 @@ RSpec.describe 'Family Workflows', type: :request do
       # User2 tries to view expired invitation
       get "/invitations/#{invitation.token}"
       expect(response).to redirect_to(root_path)
-      follow_redirect!
+      follow_redirect! while response.redirect?
       expect(response.body).to include('This invitation has expired')
 
       # User2 tries to accept expired invitation
@@ -145,10 +145,9 @@ RSpec.describe 'Family Workflows', type: :request do
     it 'prevents owner from leaving when members exist' do
       sign_in user1
 
-      # Owner tries to leave family (using memberships destroy route)
       delete family_member_path(family, owner_membership)
       expect(response).to redirect_to(family_path(family))
-      follow_redirect!
+      follow_redirect! while response.redirect?
       expect(response.body).to include('cannot remove their own membership')
 
       expect(user1.reload.member_of?(family)).to be true
@@ -164,7 +163,7 @@ RSpec.describe 'Family Workflows', type: :request do
       # Owner cannot leave even when alone - they must delete the family instead
       delete family_member_path(family, owner_membership)
       expect(response).to redirect_to(family_path(family))
-      follow_redirect!
+      follow_redirect! while response.redirect?
       expect(response.body).to include('cannot remove their own membership')
 
       expect(user1.reload.member_of?(family)).to be true
@@ -198,7 +197,7 @@ RSpec.describe 'Family Workflows', type: :request do
         end.not_to change(Family, :count)
 
         expect(response).to redirect_to(family_path(family))
-        follow_redirect!
+        follow_redirect! while response.redirect?
         expect(response.body).to include('Cannot delete family with members')
       end
     end

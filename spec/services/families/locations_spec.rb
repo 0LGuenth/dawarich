@@ -126,6 +126,31 @@ RSpec.describe Families::Locations do
       expect(member[:updated_at]).to eq(Time.zone.at(real_point.timestamp))
     end
 
+    describe 'last known address' do
+      let(:family) { create(:family) }
+      let(:other_user) { create(:user) }
+
+      before do
+        create(:family_membership, user: user, family: family)
+        enable_sharing(create(:family_membership, user: other_user, family: family))
+        create(:point, user: other_user, timestamp: 1.hour.ago.to_i, geodata: {
+                 'properties' => { 'street' => 'Karl-Heine-Straße', 'city' => 'Leipzig', 'country' => 'Germany' }
+               })
+      end
+
+      it 'is included when reverse geocoding is enabled' do
+        configure_instance_geocoding
+
+        member = described_class.new(user).call.first[:members].first
+        expect(member[:address]).to eq('Karl-Heine-Straße, Leipzig, Germany')
+      end
+
+      it 'is left out when reverse geocoding is off' do
+        member = described_class.new(user).call.first[:members].first
+        expect(member[:address]).to be_nil
+      end
+    end
+
     it 'excludes a member the caller asked to skip' do
       fam = create(:family)
       create(:family_membership, user: user, family: fam)

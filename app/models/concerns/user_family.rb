@@ -85,7 +85,12 @@ module UserFamily
                                       history_before_sharing: nil)
     return false unless in_family?
 
-    current_settings = settings || {}
+    unless settings.is_a?(Hash)
+      errors.add(:settings, :invalid)
+      raise ActiveRecord::RecordInvalid, self
+    end
+
+    current_settings = settings
     current_settings['family'] ||= {}
 
     caster = ActiveModel::Type::Boolean.new
@@ -158,7 +163,7 @@ module UserFamily
   end
 
   def family_history_before_sharing?
-    settings.dig('family', 'location_sharing', 'history_before_sharing') == true
+    settings_hash.dig('family', 'location_sharing', 'history_before_sharing') == true
   end
 
   def family_history_points(start_at:, end_at:)

@@ -65,8 +65,11 @@ class Families::Locations
     point = membership.user.points.without_raw_data.complete.not_anomaly.order(timestamp: :desc).first
     return nil unless point
 
+    with_address = Geocoding::Config.for(user).enabled?
+
     {
       user_id: membership.user_id,
+      address: (point.address_line if with_address),
       email: membership.user.email,
       name: membership.user.display_name,
       email_initial: membership.user.email.first.upcase,

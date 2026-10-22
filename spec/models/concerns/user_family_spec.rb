@@ -65,4 +65,18 @@ RSpec.describe UserFamily, type: :model do
       expect(user.can_create_more_families?).to be(true)
     end
   end
+
+  describe '#latest_location_for_family' do
+    let(:family) { create(:family) }
+    let!(:membership) { create(:family_membership, user: user, family: family, role: :owner) }
+
+    before { membership.update_sharing!(true, duration: 'permanent') }
+
+    it 'includes the display name with emoji for standalone family map labels' do
+      user.update!(first_name: '🧑 Ada', last_name: 'Example')
+      create(:point, user: user)
+
+      expect(user.latest_location_for_family[:name]).to eq('🧑 Ada Example')
+    end
+  end
 end

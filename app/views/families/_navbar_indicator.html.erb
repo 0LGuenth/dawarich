@@ -1,4 +1,4 @@
-<%= turbo_frame_tag "family-navbar-indicator" do %>
+<%= turbo_frame_tag local_assigns.fetch(:frame_id, "family-navbar-indicator") do %>
   <% sharing = user.in_family? && user.family_memberships.any?(&:sharing_active?) %>
   <div data-controller="family-navbar-indicator"
        data-family-navbar-indicator-enabled-value="<%= sharing %>">
