@@ -18,6 +18,16 @@ RSpec.describe 'Family', type: :request do
       expect(response).to have_http_status(:ok)
     end
 
+    it 'renders the member avatar badge with the initial of display name' do
+      member = create(:user, first_name: 'Grace', last_name: 'Hopper', email: 'z_hopper@example.com')
+      create(:family_membership, user: member, family: family, role: :member)
+
+      get family_path(family)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include('G')
+    end
+
     context 'when user is not in the family' do
       let(:outsider) { create(:user) }
 

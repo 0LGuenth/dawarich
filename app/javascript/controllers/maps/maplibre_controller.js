@@ -1734,7 +1734,9 @@ export default class extends Controller {
 
   buildFamilyMemberRow(location) {
     const emailInitial =
-      (location.name || location.email)?.charAt(0)?.toUpperCase() || "?"
+      location.email_initial ||
+      (location.name || location.email)?.charAt(0)?.toUpperCase() ||
+      "?"
     const color = this.getFamilyMemberColor(location.user_id)
     const lastSeen = new Date(location.updated_at).toLocaleString(
       document.documentElement.lang || undefined,

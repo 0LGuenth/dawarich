@@ -218,6 +218,17 @@ RSpec.describe Families::Locations do
       expect(member[:points].length).to eq(2)
     end
 
+    it 'uses display name initial for email_initial in history when name is present' do
+      fam = create(:family)
+      create(:family_membership, user: user, family: fam)
+      sharer = create(:user, first_name: 'Grace', last_name: 'Hopper', email: 'z_hopper@example.com')
+      enable_sharing(create(:family_membership, user: sharer, family: fam), share_history: true, history_window: 'all')
+      create(:point, user: sharer, timestamp: 1.hour.ago.to_i)
+
+      groups = described_class.new(user).history(start_at: 1.day.ago, end_at: Time.current)
+      expect(groups.first[:members].first[:email_initial]).to eq('G')
+    end
+
     it 'excludes members whose sharing is disabled' do
       fam = create(:family)
       create(:family_membership, user: user, family: fam)

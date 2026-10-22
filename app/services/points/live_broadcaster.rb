@@ -77,7 +77,7 @@ class Points::LiveBroadcaster
       user_id: user.id,
       email: user.email,
       name: user.display_name,
-      email_initial: user.email.first.upcase,
+      email_initial: user.initial,
       latitude: result['latitude'].to_f,
       longitude: result['longitude'].to_f,
       timestamp: timestamp,

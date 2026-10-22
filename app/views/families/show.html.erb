@@ -89,7 +89,7 @@
                 <%# Avatar %>
                 <div class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold
                      <%= member == current_user ? 'bg-primary text-primary-content' : 'bg-base-200 text-base-content/60' %>">
-                  <%= member.email&.first&.upcase || '?' %>
+                  <%= member.initial || '?' %>
                 </div>
 
                 <%# Info %>

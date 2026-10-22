@@ -93,6 +93,10 @@ class User < ApplicationRecord
     [first_name, last_name].filter_map { |part| part.to_s.strip.presence }.join(' ').presence || email
   end
 
+  def initial
+    (display_name.to_s.strip.presence || email.to_s.strip.presence)&.first&.upcase.presence || '?'
+  end
+
   def otp_locked?
     otp_locked_at.present? && otp_locked_at > OTP_LOCK_DURATION.ago
   end

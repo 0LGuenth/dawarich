@@ -208,7 +208,7 @@ class Point < ApplicationRecord
       user_id: user.id,
       email: user.email,
       name: user.display_name,
-      email_initial: user.email.first.upcase,
+      email_initial: user.initial,
       latitude: lat,
       longitude: lon,
       timestamp: timestamp.to_i,

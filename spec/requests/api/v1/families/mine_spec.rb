@@ -33,6 +33,18 @@ RSpec.describe 'Api::V1::Families::Mine', type: :request do
       expect(json['location_requests']['outgoing']).to eq([])
     end
 
+    it 'uses display name initial for email_initial when available' do
+      named_member = create(:user, first_name: 'Grace', last_name: 'Hopper', email: 'z_hopper@example.com')
+      create(:family_membership, user: named_member, family: family, role: :member)
+
+      get '/api/v1/families/mine', headers: { 'Authorization' => "Bearer #{user.api_key}" }
+
+      expect(response).to have_http_status(:ok)
+      json = JSON.parse(response.body)
+      row = json['members'].find { |m| m['user_id'] == named_member.id }
+      expect(row['email_initial']).to eq('G')
+    end
+
     it 'intermixes members from all families with a family prefix' do
       other_family = create(:family, creator: user)
       other_member = create(:user)
@@ -47,6 +59,19 @@ RSpec.describe 'Api::V1::Families::Mine', type: :request do
       expect(json['members'].map { |m| m['family_id'] }).to include(family.id, other_family.id)
       expect(json['members'].all? { |m| m['family_name'].present? }).to be true
       expect(json['members'].all? { |m| m['email_initial'].match?(/\A[A-Z]{2}\z/) }).to be true
+    end
+
+    it 'combines family initial and member display name initial when in multiple families' do
+      other_family = create(:family, name: 'Munich', creator: user)
+      named_member = create(:user, first_name: 'Grace', last_name: 'Hopper', email: 'z_hopper@example.com')
+      create(:family_membership, user: user, family: other_family, role: :owner)
+      create(:family_membership, user: named_member, family: other_family, role: :member)
+
+      get '/api/v1/families/mine', headers: { 'Authorization' => "Bearer #{user.api_key}" }
+
+      json = JSON.parse(response.body)
+      row = json['members'].find { |m| m['user_id'] == named_member.id }
+      expect(row['email_initial']).to eq('MG')
     end
 
     it 'deduplicates members by user_id across multiple families' do

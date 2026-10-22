@@ -14,3 +14,19 @@ RSpec.describe User, '#display_name' do
     expect(user.display_name).to eq(user.email)
   end
 end
+
+RSpec.describe User, '#initial' do
+  it 'uses the first character of display name when available' do
+    expect(build(:user, first_name: 'Ada', last_name: 'Lovelace').initial).to eq('A')
+    expect(build(:user, first_name: 'bob', email: 'alice@example.com').initial).to eq('B')
+  end
+
+  it 'falls back to the first character of email when names are missing or whitespace' do
+    expect(build(:user, first_name: nil, last_name: nil, email: 'charlie@example.com').initial).to eq('C')
+    expect(build(:user, first_name: ' ', last_name: ' ', email: 'dave@example.com').initial).to eq('D')
+  end
+
+  it 'falls back to ? when display name and email are missing' do
+    expect(build(:user, first_name: nil, last_name: nil, email: '').initial).to eq('?')
+  end
+end

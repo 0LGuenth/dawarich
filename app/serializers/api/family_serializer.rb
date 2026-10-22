@@ -91,9 +91,10 @@ class Api::FamilySerializer
 
   # Avatar initial carries the family when the user is in several families.
   def prefixed_initial(family, member)
-    return member.email.first.upcase unless multi_family? && family&.name.present?
+    initial = member.initial
+    return initial unless multi_family? && family&.name.present?
 
-    "#{family.name.first}#{member.email.first}".upcase
+    "#{family.name.first}#{initial}".upcase
   end
 
   def multi_family?
