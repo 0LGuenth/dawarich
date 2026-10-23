@@ -13,88 +13,73 @@ class Users::Destroy
 
     cancel_scheduled_jobs
 
-    # Purge ActiveStorage attachments before delete_all (which bypasses callbacks)
-    purge_attachments_for('Import', user.imports)
-    purge_attachments_for('Export', user.exports)
-    purge_attachments_for('Points::RawDataArchive', user.raw_data_archives)
+    Users::DataLock.with_exclusive(user_id) do
+      purge_attachments_for('Import', user.imports)
+      purge_attachments_for('Export', user.exports)
+      purge_attachments_for('Points::RawDataArchive', user.raw_data_archives)
 
-    ActiveRecord::Base.transaction do
-      # Validate inside transaction to prevent TOCTOU race
-      # (a member could join/leave between check and delete if outside)
-      # Mirrors User#can_delete_account? but re-checked here inside the
-      # transaction to stay TOCTOU-safe. Keep the two rules in sync.
-      created_families = Family.where(creator_id: user_id).to_a
-      blocking = created_families.find { |f| Family::Membership.where(family_id: f.id).count > 1 }
-      if blocking
-        error_message = I18n.t('services.users.destroy.cannot_delete_user_who_owns_a_family_with_other_members')
-        Rails.logger.warn "#{error_message}: user_id=#{user_id}"
-        user.errors.add(:base, error_message)
-        raise ActiveRecord::RecordInvalid, user
+      ActiveRecord::Base.transaction do
+        created_families = Family.where(creator_id: user_id).to_a
+        blocking = created_families.find { |f| Family::Membership.where(family_id: f.id).count > 1 }
+        if blocking
+          error_message = I18n.t('services.users.destroy.cannot_delete_user_who_owns_a_family_with_other_members')
+          Rails.logger.warn "#{error_message}: user_id=#{user_id}"
+          user.errors.add(:base, error_message)
+          raise ActiveRecord::RecordInvalid, user
+        end
+
+        user.points.delete_all
+        user.imports.delete_all
+        user.stats.delete_all
+        user.exports.delete_all
+        user.posters.destroy_all
+        user.route_videos.destroy_all
+        user.notifications.delete_all
+        user.achievement_progresses.delete_all
+        user.user_achievements.delete_all
+        user.flights.delete_all
+        user.notes.delete_all
+        user.service_settings.delete_all
+
+        PlaceVisit.where(visit_id: user.visits.select(:id)).delete_all
+        PlaceVisit.where(place_id: user.places.select(:id)).delete_all
+
+        user.visits.delete_all
+        user.areas.delete_all
+
+        Visit.where(place_id: user.places.select(:id)).update_all(place_id: nil)
+        user.places.delete_all
+
+        Tagging.where(tag_id: user.tags.select(:id)).delete_all
+        user.tags.delete_all
+
+        user.trips.find_each(&:destroy!)
+        user.trip_sources.delete_all
+
+        TrackSegment.where(track_id: user.tracks.select(:id)).delete_all
+        delete_video_exports_for(user)
+        user.tracks.delete_all
+        Points::Revision.where(user_id: user.id).delete_all
+        Tracks::Revision.where(user_id: user.id).delete_all
+
+        user.raw_data_archives.delete_all
+        user.digests.delete_all
+        user.sent_family_invitations.delete_all if user.respond_to?(:sent_family_invitations)
+
+        Family::LocationRequest.where(requester_id: user.id)
+                               .or(Family::LocationRequest.where(target_user_id: user.id))
+                               .delete_all
+
+        Family::Membership.where(user_id: user.id).delete_all
+
+        created_families.each do |created_family|
+          Family::LocationRequest.where(family_id: created_family.id).delete_all
+          Family::Membership.where(family_id: created_family.id).delete_all
+          created_family.delete
+        end
+
+        user.delete
       end
-
-      # Delete associated records first (dependent: :destroy associations)
-      # IMPORTANT: Order matters due to foreign key constraints!
-
-      user.points.delete_all
-      user.imports.delete_all
-      user.stats.delete_all
-      user.exports.delete_all
-      user.posters.destroy_all
-      user.route_videos.destroy_all
-      user.notifications.delete_all
-      user.achievement_progresses.delete_all
-      user.user_achievements.delete_all
-      user.flights.delete_all
-      user.notes.delete_all
-      user.service_settings.delete_all
-
-      # Delete place_visits BEFORE visits and places
-      PlaceVisit.where(visit_id: user.visits.select(:id)).delete_all
-      PlaceVisit.where(place_id: user.places.select(:id)).delete_all
-
-      # Delete visits BEFORE areas (visits has FK to areas)
-      user.visits.delete_all
-      user.areas.delete_all
-
-      Visit.where(place_id: user.places.select(:id)).update_all(place_id: nil)
-      user.places.delete_all
-
-      # Delete taggings BEFORE tags (taggings has FK to tags)
-      Tagging.where(tag_id: user.tags.select(:id)).delete_all
-      user.tags.delete_all
-
-      user.trips.find_each(&:destroy!)
-      user.trip_sources.delete_all
-
-      # Delete track_segments and video_exports BEFORE tracks (both have FK to tracks)
-      TrackSegment.where(track_id: user.tracks.select(:id)).delete_all
-      delete_video_exports_for(user)
-      user.tracks.delete_all
-
-      user.raw_data_archives.delete_all
-      user.digests.delete_all
-      user.sent_family_invitations.delete_all if user.respond_to?(:sent_family_invitations)
-
-      # Delete family location requests (has FK to users via requester_id and target_user_id)
-      Family::LocationRequest.where(requester_id: user.id)
-                             .or(Family::LocationRequest.where(target_user_id: user.id))
-                             .delete_all
-
-      # Delete family associations (memberships before family due to FK)
-      # Delete ALL family memberships for this user (using direct query to avoid association cache issues)
-      Family::Membership.where(user_id: user.id).delete_all
-
-      # Delete every family this user created (each has only this user as member left).
-      # Reuses created_families from the validation check above.
-      created_families.each do |created_family|
-        # Delete location requests referencing this family before deleting the family (FK)
-        Family::LocationRequest.where(family_id: created_family.id).delete_all
-        Family::Membership.where(family_id: created_family.id).delete_all
-        created_family.delete
-      end
-
-      # Hard delete the user (bypasses soft-delete, skips callbacks)
-      user.delete
     end
 
     Rails.logger.info "User #{user_id} (#{user_email}) and all associated data deleted"
@@ -141,8 +126,7 @@ class Users::Destroy
     ExceptionReporter.call(e, "Failed to purge #{record_type} attachments for user #{user.id}")
   end
 
-  # video_exports table exists (FK to tracks and users) but has no model class.
-  # Use raw SQL to avoid NameError.
+  # video_exports has no model class; use raw SQL to avoid NameError.
   def delete_video_exports_for(user)
     return unless ActiveRecord::Base.connection.table_exists?('video_exports')
 
