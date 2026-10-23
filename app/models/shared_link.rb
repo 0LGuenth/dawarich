@@ -50,8 +50,11 @@ class SharedLink < ApplicationRecord
             '  SELECT 1 FROM family_memberships fm ' \
             '  WHERE fm.user_id = shared_links.user_id ' \
             '    AND fm.family_id IN (:ids) ' \
-            "    AND jsonb_typeof(shared_links.settings -> 'family_ids') = 'array' " \
-            "    AND shared_links.settings -> 'family_ids' @> to_jsonb(fm.family_id)" \
+            '    AND (' \
+            "      (jsonb_typeof(shared_links.settings -> 'family_ids') = 'array' " \
+            "       AND shared_links.settings -> 'family_ids' @> to_jsonb(fm.family_id)) " \
+            "      OR (shared_links.settings ->> 'family_id' = fm.family_id::text)" \
+            '    )' \
             ')',
             ids: active_family_ids
           )
@@ -62,7 +65,9 @@ class SharedLink < ApplicationRecord
   end
 
   def target_family_ids
-    Array(settings['family_ids']).map(&:to_i).reject(&:zero?)
+    ids = Array(settings['family_ids'])
+    ids << settings['family_id'] if settings['family_id'].present?
+    ids.map(&:to_i).reject(&:zero?).uniq
   end
 
   def accessible_to?(viewer)
