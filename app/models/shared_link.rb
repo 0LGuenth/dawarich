@@ -39,10 +39,19 @@ class SharedLink < ApplicationRecord
   }
 
   def self.family_trips_for(viewer)
-    active_family_ids = viewer&.families&.select(&:access_live?)&.map(&:id)
+    return none unless viewer&.feature_enabled?(:family)
+
+    active_family_ids = viewer.families.select(&:access_live?).map(&:id)
     return none if active_family_ids.blank?
 
-    active.where(resource_type: :trip)
+    owner_ids = User.joins(:family_memberships)
+                    .where(family_memberships: { family_id: active_family_ids })
+                    .distinct
+                    .select { |member| member.feature_enabled?(:family) }
+                    .map(&:id)
+    return none if owner_ids.empty?
+
+    active.where(resource_type: :trip, user_id: owner_ids)
           .where.not(user_id: viewer.id)
           .where("settings ->> 'audience' = 'family'")
           .where(
@@ -72,7 +81,7 @@ class SharedLink < ApplicationRecord
 
   def accessible_to?(viewer)
     return true unless family_only?
-    return false unless viewer
+    return false unless viewer&.feature_enabled?(:family) && user&.feature_enabled?(:family)
 
     target_ids = target_family_ids
     return false if target_ids.empty?

@@ -180,21 +180,22 @@ class Point < ApplicationRecord
 
   # Metrics/AbcSize
   def broadcast_coordinates
-    return unless user.safe_settings.live_map_enabled
+    if user.safe_settings.live_map_enabled && !Maps::PrivacyZoneMasker.new(user).in_zone?(lon, lat)
+      PointsChannel.broadcast_to(
+        user,
+        [
+          lat,
+          lon,
+          battery.to_s,
+          altitude.to_s,
+          timestamp.to_s,
+          velocity.to_s,
+          id.to_s,
+          country_name.to_s
+        ]
+      )
+    end
 
-    PointsChannel.broadcast_to(
-      user,
-      [
-        lat,
-        lon,
-        battery.to_s,
-        altitude.to_s,
-        timestamp.to_s,
-        velocity.to_s,
-        id.to_s,
-        country_name.to_s
-      ]
-    )
     broadcast_to_family if should_broadcast_to_family?
   end
 

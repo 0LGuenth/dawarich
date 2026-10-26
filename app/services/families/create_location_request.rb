@@ -13,6 +13,7 @@ class Families::CreateLocationRequest
 
   def call
     return not_in_same_family_error unless in_same_family?
+    return family_turned_off_error unless target_user.feature_enabled?(:family)
     return already_sharing_error if target_membership&.sharing_active?
     return cooldown_error if cooldown_active?
 
@@ -87,6 +88,11 @@ class Families::CreateLocationRequest
     message = I18n.t('services.families.create_location_request.users_must_be_in_the_same_family')
     Result.new(success?: false,
                payload: { message: message }, status: :forbidden)
+  end
+
+  def family_turned_off_error
+    message = I18n.t('services.families.create_location_request.target_user_turned_family_off')
+    Result.new(success?: false, payload: { message: message }, status: :unprocessable_content)
   end
 
   def already_sharing_error

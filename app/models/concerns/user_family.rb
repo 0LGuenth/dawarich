@@ -78,7 +78,13 @@ module UserFamily
   end
 
   def family_sharing_enabled?
-    family_memberships.any?(&:sharing_active?)
+    feature_enabled?(:family) && family_sharing_stored?
+  end
+
+  # The stored choice, regardless of the family feature toggle: departure
+  # cleanup must clear it even while the user has family switched off.
+  def family_sharing_stored?
+    family_memberships.any?(&:sharing_stored?)
   end
 
   def update_family_location_sharing!(enabled, duration: nil, share_history: nil, history_window: nil,

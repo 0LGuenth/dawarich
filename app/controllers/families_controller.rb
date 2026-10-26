@@ -10,10 +10,14 @@ class FamiliesController < ApplicationController
   before_action :set_family, only: %i[show edit update destroy]
 
   def index
+    return feature_disabled_in_settings! unless current_user.feature_enabled?(:family)
+
     @families = current_user.families.includes(:family_memberships).order(:name)
   end
 
   def show
+    return feature_disabled_in_settings! unless current_user.feature_enabled?(:family)
+
     authorize @family
 
     if @family.lapsed?
@@ -37,6 +41,8 @@ class FamiliesController < ApplicationController
   end
 
   def new
+    return feature_disabled_in_settings! unless current_user.feature_enabled?(:family)
+
     @family = Family.new
     @can_create_family = FamilyPolicy.new(current_user, @family).create?
     return if @can_create_family

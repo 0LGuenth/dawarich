@@ -65,7 +65,7 @@ class Entitlements
   end
 
   def data_window_start
-    data_window&.ago
+    DawarichSettings.lite_data_window_start if data_window
   end
 
   def unlimited_points?
@@ -76,6 +76,10 @@ class Entitlements
     return if unlimited_points?
 
     DawarichSettings::BASIC_PAID_PLAN_LIMIT
+  end
+
+  def webhook_limits?
+    !self_hosted?
   end
 
   private

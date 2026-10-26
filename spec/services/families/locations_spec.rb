@@ -61,6 +61,19 @@ RSpec.describe Families::Locations do
       expect(groups.first[:members].map { |x| x[:user_id] }).to contain_exactly(sharer.id)
     end
 
+    it 'hides members who turned the family feature off' do
+      now = Time.current
+      fam = create(:family)
+      create(:family_membership, user: user, family: fam)
+      other_user = create(:user)
+      enable_sharing(create(:family_membership, user: other_user, family: fam), share_history: true)
+      other_user.update!(settings: other_user.settings.merge('family_enabled' => false))
+      create(:point, user: other_user, timestamp: now.to_i)
+
+      expect(described_class.new(user).call).to be_empty
+      expect(described_class.new(user).history(start_at: now - 1.hour, end_at: now + 1.hour)).to be_empty
+    end
+
     it 'uses profile names for the location and history payloads' do
       fam = create(:family)
       create(:family_membership, user: user, family: fam)

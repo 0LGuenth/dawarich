@@ -25,6 +25,12 @@ class Family::Membership < ApplicationRecord
   after_destroy :cleanup_on_departure
 
   def sharing_active?
+    return false unless user&.feature_enabled?(:family)
+
+    sharing_stored?
+  end
+
+  def sharing_stored?
     return false unless sharing_enabled?
 
     sharing_expires_at.blank? || sharing_expires_at.future?
@@ -165,6 +171,13 @@ class Family::Membership < ApplicationRecord
 
   def cleanup_on_departure
     revoke_inherited_subscription
+
+    # Disable user-level location sharing when leaving their last family
+    if !user.in_family? && user.settings_hash.dig('family', 'location_sharing', 'enabled') == true
+      current_settings = user.settings_hash.deep_dup
+      current_settings['family']['location_sharing'] = { 'enabled' => false }
+      user.update!(settings: current_settings)
+    end
 
     # Expire pending location requests for this family involving the departing user
     Family::LocationRequest
