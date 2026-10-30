@@ -17,9 +17,11 @@ class Family::Membership < ApplicationRecord
 
   enum :role, { owner: 0, member: 1 }
 
+  FAMILY_MAP_LAYER = 'Family Members'
   VALID_HISTORY_WINDOWS = %w[24h 7d 30d all].freeze
 
   after_create :clear_family_cache
+  after_create :enable_family_map_layer
   after_update :clear_family_cache
   after_destroy :clear_family_cache
   after_destroy :cleanup_on_departure
@@ -169,6 +171,24 @@ class Family::Membership < ApplicationRecord
     family.clear_member_cache!
   end
 
+  # A new member should see the family on the map without hunting for the toggle.
+  def enable_family_map_layer
+    settings = user.settings || {}
+    layers = Array(settings['enabled_map_layers'] || Users::SafeSettings::DEFAULT_VALUES['enabled_map_layers'])
+    return if layers.include?(FAMILY_MAP_LAYER)
+
+    user.update_columns(settings: settings.merge('enabled_map_layers' => layers + [FAMILY_MAP_LAYER]))
+  end
+
+  # Without a family the layer has nothing to show and the map would report a failed load.
+  def disable_family_map_layer
+    settings = user.settings || {}
+    layers = Array(settings['enabled_map_layers'])
+    return unless layers.include?(FAMILY_MAP_LAYER)
+
+    user.update_columns(settings: settings.merge('enabled_map_layers' => layers - [FAMILY_MAP_LAYER]))
+  end
+
   def cleanup_on_departure
     revoke_inherited_subscription
 
@@ -178,6 +198,7 @@ class Family::Membership < ApplicationRecord
       current_settings['family']['location_sharing'] = { 'enabled' => false }
       user.update!(settings: current_settings)
     end
+    disable_family_map_layer unless user.in_family?
 
     # Expire pending location requests for this family involving the departing user
     Family::LocationRequest

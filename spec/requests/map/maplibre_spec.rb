@@ -7,6 +7,39 @@ RSpec.describe 'Map v2 (maplibre)', type: :request do
 
   before { sign_in user }
 
+  it 'renders the place editor only inside the left map panel' do
+    get map_v2_path
+
+    document = Nokogiri::HTML(response.body)
+    panel = document.at_css('#map-settings-panel [data-tab-content="place"]')
+    expect(panel).to be_present
+    expect(panel.at_css('[data-controller="place-panel"] turbo-frame#place-drawer')).to be_present
+    expect(panel.at_css('[data-action="place-panel#close"]')).to be_present
+    expect(document.css('turbo-frame#place-drawer').size).to eq(1)
+    expect(document.at_css('#maps-maplibre-container > .place-panel')).to be_nil
+  end
+
+  it 'keeps one panel header close control and only Back inside the place editor' do
+    get map_v2_path
+
+    document = Nokogiri::HTML(response.body)
+    panel = document.at_css('#map-settings-panel')
+    expect(panel.css('.panel-header button').size).to eq(1)
+    toolbar = panel.at_css('.place-panel__toolbar')
+    expect(toolbar.css('button').size).to eq(1)
+    expect(toolbar.at_css('button').text.strip).to eq(I18n.t('map.maplibre.settings_panel.back'))
+    expect(toolbar.at_css('button')['data-action']).to eq('place-panel#close')
+  end
+
+  it 'lets Turbo own the persistent creation form submit state' do
+    get map_v2_path
+
+    document = Nokogiri::HTML(response.body)
+    submit = document.at_css('[data-place-creation-target="submitButton"]')
+    expect(submit['data-turbo-submits-with']).to be_present
+    expect(submit['data-disable-with']).to be_nil
+  end
+
   describe 'privacy zones' do
     def fingerprint_value
       map = Nokogiri::HTML(response.body).at_css('[data-controller~="maps--maplibre"]')
@@ -118,6 +151,21 @@ RSpec.describe 'Map v2 (maplibre)', type: :request do
 
       slider = Nokogiri::HTML(response.body).at_css('[data-poster-studio-editor-target="trackOpacity"]')
       expect(slider['value']).to eq('100')
+    end
+
+    it 'hands the custom tiles settings to both studios' do
+      tiles_url = 'https://tiles.example.test/planet/{z}/{x}/{y}.mvt'
+      user.update!(settings: user.settings.merge('maps_maplibre_tiles_url' => tiles_url,
+                                                 'maps_maplibre_tiles_fallback' => true))
+
+      get map_v2_path
+
+      page = Nokogiri::HTML(response.body)
+      %w[poster-studio-editor video-studio].each do |studio|
+        root = page.at_css("[data-controller=\"#{studio}\"]")
+        expect(root["data-#{studio}-tiles-url-value"]).to eq(tiles_url)
+        expect(root["data-#{studio}-tiles-fallback-value"]).to eq('true')
+      end
     end
   end
 
